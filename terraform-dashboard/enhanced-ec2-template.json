@@ -1,0 +1,168 @@
+{
+  "name": "Enhanced EC2 Instance",
+  "description": "Deploy a comprehensive EC2 instance with security group, EBS volumes, and advanced configurations",
+  "category": "Compute",
+  "terraformCode": "# Data source for latest AMI if not provided\ndata \"aws_ami\" \"selected\" {\n  count       = var.ami_id == \"\" ? 1 : 0\n  most_recent = true\n  owners      = [var.ami_owner]\n  \n  filter {\n    name   = \"name\"\n    values = [var.ami_name_filter]\n  }\n  \n  filter {\n    name   = \"virtualization-type\"\n    values = [\"hvm\"]\n  }\n  \n  filter {\n    name   = \"state\"\n    values = [\"available\"]\n  }\n}\n\n# Data source for subnet information\ndata \"aws_subnet\" \"selected\" {\n  id = var.subnet_id\n}\n\n# Local values for computed configurations\nlocals {\n  ami_id = var.ami_id != \"\" ? var.ami_id : data.aws_ami.selected[0].id\n  security_group_name = var.security_group_name != \"\" ? var.security_group_name : \"${var.name}-sg\"\n  all_security_group_ids = var.create_security_group ? concat([aws_security_group.instance[0].id], var.security_group_ids) : var.security_group_ids\n  \n  common_tags = {\n    Name        = var.name\n    Environment = var.environment\n    Module      = \"ec2-instance\"\n  }\n  \n  volume_tags = {\n    Name        = \"${var.name}-volume\"\n    Environment = var.environment\n    Module      = \"ec2-instance\"\n  }\n}\n\n# Security Group for the instance\nresource \"aws_security_group\" \"instance\" {\n  count       = var.create_security_group ? 1 : 0\n  name        = local.security_group_name\n  description = \"Security group for ${var.name} EC2 instance\"\n  vpc_id      = var.vpc_id\n  \n  # SSH access\n  ingress {\n    description = \"SSH access\"\n    from_port   = var.ssh_port\n    to_port     = var.ssh_port\n    protocol    = \"tcp\"\n    cidr_blocks = var.allowed_cidr_blocks\n  }\n  \n  # Outbound internet access\n  egress {\n    description = \"All outbound traffic\"\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"-1\"\n    cidr_blocks = [\"0.0.0.0/0\"]\n  }\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = local.security_group_name\n    }\n  )\n  \n  lifecycle {\n    create_before_destroy = true\n  }\n}\n\n# EC2 Instance\nresource \"aws_instance\" \"main\" {\n  ami           = local.ami_id\n  instance_type = var.instance_type\n  key_name      = var.key_pair_name != \"\" ? var.key_pair_name : null\n  \n  subnet_id                   = var.subnet_id\n  vpc_security_group_ids      = local.all_security_group_ids\n  associate_public_ip_address = var.associate_public_ip\n  \n  user_data                   = var.user_data != \"\" && !var.user_data_base64 ? var.user_data : null\n  user_data_base64           = var.user_data != \"\" && var.user_data_base64 ? var.user_data : null\n  \n  monitoring                 = var.enable_detailed_monitoring\n  disable_api_termination    = var.enable_termination_protection\n  \n  # Root volume configuration\n  root_block_device {\n    volume_type = var.root_volume_type\n    volume_size = var.root_volume_size\n    encrypted   = var.root_volume_encrypted\n    kms_key_id  = var.root_volume_kms_key_id != \"\" ? var.root_volume_kms_key_id : null\n    \n    tags = local.volume_tags\n    delete_on_termination = true\n  }\n  \n  tags = local.common_tags\n  \n  lifecycle {\n    ignore_changes = [\n      ami,\n      user_data,\n      user_data_base64\n    ]\n  }\n  \n  depends_on = [aws_security_group.instance]\n}\n\n# Elastic IP (optional)\nresource \"aws_eip\" \"instance\" {\n  count    = var.associate_public_ip ? 1 : 0\n  instance = aws_instance.main.id\n  domain   = \"vpc\"\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.name}-eip\"\n    }\n  )\n  \n  depends_on = [aws_instance.main]\n}",
+  "variables": [
+    {
+      "name": "name",
+      "type": "string",
+      "description": "Name for the EC2 instance",
+      "required": true
+    },
+    {
+      "name": "instance_type",
+      "type": "string",
+      "description": "EC2 instance type",
+      "required": false,
+      "default": "t3.micro",
+      "options": [
+        "t3.nano", "t3.micro", "t3.small", "t3.medium", "t3.large", "t3.xlarge", "t3.2xlarge",
+        "t2.nano", "t2.micro", "t2.small", "t2.medium", "t2.large", "t2.xlarge", "t2.2xlarge",
+        "m5.large", "m5.xlarge", "m5.2xlarge", "m5.4xlarge", "m5.8xlarge",
+        "c5.large", "c5.xlarge", "c5.2xlarge", "c5.4xlarge", "c5.9xlarge",
+        "r5.large", "r5.xlarge", "r5.2xlarge", "r5.4xlarge", "r5.8xlarge"
+      ]
+    },
+    {
+      "name": "ami_id",
+      "type": "string",
+      "description": "AMI ID for the instance (leave empty for latest Amazon Linux 2)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "ami_name_filter",
+      "type": "string",
+      "description": "Name filter for AMI lookup when ami_id is not provided",
+      "required": false,
+      "default": "amzn2-ami-hvm-*-x86_64-gp2"
+    },
+    {
+      "name": "ami_owner",
+      "type": "string",
+      "description": "Owner of the AMI when using ami_name_filter",
+      "required": false,
+      "default": "amazon",
+      "options": ["amazon", "self", "aws-marketplace"]
+    },
+    {
+      "name": "key_pair_name",
+      "type": "string",
+      "description": "Name of the AWS key pair for EC2 access (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "vpc_id",
+      "type": "string",
+      "description": "VPC ID where the instance will be created",
+      "required": true
+    },
+    {
+      "name": "subnet_id",
+      "type": "string",
+      "description": "Subnet ID where the instance will be placed",
+      "required": true
+    },
+    {
+      "name": "security_group_ids",
+      "type": "list",
+      "description": "List of additional security group IDs to attach",
+      "required": false,
+      "default": []
+    },
+    {
+      "name": "create_security_group",
+      "type": "boolean",
+      "description": "Whether to create a default security group",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "security_group_name",
+      "type": "string",
+      "description": "Name for the security group (if created)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "allowed_cidr_blocks",
+      "type": "list",
+      "description": "List of CIDR blocks allowed to access the instance",
+      "required": false,
+      "default": ["10.0.0.0/8"]
+    },
+    {
+      "name": "ssh_port",
+      "type": "number",
+      "description": "SSH port for instance access",
+      "required": false,
+      "default": 22
+    },
+    {
+      "name": "user_data",
+      "type": "string",
+      "description": "User data script for instance initialization",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "user_data_base64",
+      "type": "boolean",
+      "description": "Whether user_data is base64 encoded",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "root_volume_size",
+      "type": "number",
+      "description": "Size of the root EBS volume in GB",
+      "required": false,
+      "default": 20
+    },
+    {
+      "name": "root_volume_type",
+      "type": "string",
+      "description": "Type of the root EBS volume",
+      "required": false,
+      "default": "gp3",
+      "options": ["gp2", "gp3", "io1", "io2", "sc1", "st1"]
+    },
+    {
+      "name": "root_volume_encrypted",
+      "type": "boolean",
+      "description": "Whether to encrypt the root EBS volume",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "root_volume_kms_key_id",
+      "type": "string",
+      "description": "KMS key ID for root volume encryption (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "associate_public_ip",
+      "type": "boolean",
+      "description": "Whether to associate a public IP address",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "enable_detailed_monitoring",
+      "type": "boolean",
+      "description": "Enable detailed monitoring for the instance",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "enable_termination_protection",
+      "type": "boolean",
+      "description": "Enable termination protection for the instance",
+      "required": false,
+      "default": false
+    }
+  ]
+}

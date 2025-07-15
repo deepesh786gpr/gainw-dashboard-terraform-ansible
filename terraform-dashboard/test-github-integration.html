@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .test-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1565c0;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            padding: 0;
+            list-style: none;
+        }
+        .step-indicator li {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 0 2px;
+        }
+        .step-indicator li.active {
+            background: #1976d2;
+            color: white;
+        }
+        .step-indicator li.completed {
+            background: #4caf50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 GitHub Integration Diagnostic</h1>
+        <p>Testing and debugging GitHub integration functionality</p>
+        <button class="test-button" onclick="runAllTests()">🧪 Run All Tests</button>
+        <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Test Progress</h2>
+        <ul class="step-indicator">
+            <li id="step-auth">Authentication</li>
+            <li id="step-token">Token Validation</li>
+            <li id="step-search">Repository Search</li>
+            <li id="step-analyze">Repository Analysis</li>
+            <li id="step-import">Template Import</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 Step 1: Authentication Test</h2>
+        <button class="test-button" onclick="testAuthentication()">Test Login</button>
+        <div id="authResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔑 Step 2: GitHub Token Management</h2>
+        <div class="form-group">
+            <label>GitHub Personal Access Token (for testing):</label>
+            <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+            <small>Create one at: https://github.com/settings/tokens</small>
+        </div>
+        <button class="test-button" onclick="testTokenValidation()">Validate Token</button>
+        <button class="test-button" onclick="testTokenStorage()">Test Token Storage</button>
+        <button class="test-button" onclick="listStoredTokens()">List Stored Tokens</button>
+        <div id="tokenResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Step 3: Repository Search</h2>
+        <div class="form-group">
+            <label>Search Query:</label>
+            <input type="text" id="searchQuery" value="terraform" placeholder="terraform, aws, infrastructure...">
+        </div>
+        <button class="test-button" onclick="testRepositorySearch()">Search Repositories</button>
+        <div id="searchResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Step 4: Repository Analysis</h2>
+        <div class="form-group">
+            <label>Repository (owner/repo):</label>
+            <input type="text" id="repoName" placeholder="hashicorp/terraform-aws-modules">
+        </div>
+        <button class="test-button" onclick="testRepositoryAnalysis()">Analyze Repository</button>
+        <div id="analysisResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📥 Step 5: Template Import</h2>
+        <div class="form-group">
+            <label>Template Name:</label>
+            <input type="text" id="templateName" placeholder="My Terraform Template">
+        </div>
+        <button class="test-button" onclick="testTemplateImport()">Import Template</button>
+        <div id="importResults"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.31.94:5000';
+        let authToken = null;
+        let validatedGithubToken = null;
+
+        function setStepStatus(stepId, status) {
+            const step = document.getElementById(stepId);
+            step.className = status; // 'active', 'completed', or ''
+        }
+
+        async function testAuthentication() {
+            const resultsDiv = document.getElementById('authResults');
+            setStepStatus('step-auth', 'active');
+            
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Testing authentication...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    authToken = data.tokens.accessToken;
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Authentication successful!<br>
+                            User: ${data.user.username}<br>
+                            Role: ${data.user.role}
+                        </div>
+                    `;
+                    setStepStatus('step-auth', 'completed');
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Authentication failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Authentication error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testTokenValidation() {
+            const resultsDiv = document.getElementById('tokenResults');
+            const token = document.getElementById('githubToken').value;
+            
+            if (!token) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please enter a GitHub token
+                    </div>
+                `;
+                return;
+            }
+
+            setStepStatus('step-token', 'active');
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Validating GitHub token...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/validate-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.valid) {
+                    validatedGithubToken = token;
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ GitHub token is valid!<br>
+                            User: ${data.user.login}<br>
+                            Name: ${data.user.name || 'N/A'}
+                        </div>
+                    `;
+                    setStepStatus('step-token', 'completed');
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Token validation failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Token validation error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testTokenStorage() {
+            if (!authToken) {
+                document.getElementById('tokenResults').innerHTML += `
+                    <div class="test-result error">
+                        ❌ Please authenticate first
+                    </div>
+                `;
+                return;
+            }
+
+            const token = document.getElementById('githubToken').value;
+            if (!token) {
+                document.getElementById('tokenResults').innerHTML += `
+                    <div class="test-result error">
+                        ❌ Please enter a GitHub token
+                    </div>
+                `;
+                return;
+            }
+
+            const resultsDiv = document.getElementById('tokenResults');
+            resultsDiv.innerHTML += '<div class="test-result info">🔄 Testing token storage...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/tokens`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify({
+                        name: 'Test Token',
+                        token: token,
+                        description: 'Test token for GitHub integration',
+                        skipValidation: false
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Token stored successfully!<br>
+                            Token ID: ${data.tokenId}<br>
+                            User: ${data.user.login}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Token storage failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Token storage error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function listStoredTokens() {
+            if (!authToken) {
+                document.getElementById('tokenResults').innerHTML += `
+                    <div class="test-result error">
+                        ❌ Please authenticate first
+                    </div>
+                `;
+                return;
+            }
+
+            const resultsDiv = document.getElementById('tokenResults');
+            resultsDiv.innerHTML += '<div class="test-result info">🔄 Loading stored tokens...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/tokens`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+                
+                const tokens = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Found ${tokens.length} stored GitHub tokens
+                        </div>
+                    `;
+                    
+                    tokens.forEach(token => {
+                        resultsDiv.innerHTML += `
+                            <div class="test-result info">
+                                📝 ${token.token_name}<br>
+                                User: ${token.metadata.github_user?.login || 'Unknown'}<br>
+                                Created: ${new Date(token.created_at).toLocaleString()}
+                            </div>
+                        `;
+                    });
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Failed to load tokens: ${tokens.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Error loading tokens: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testRepositorySearch() {
+            if (!validatedGithubToken) {
+                document.getElementById('searchResults').innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please validate a GitHub token first
+                    </div>
+                `;
+                return;
+            }
+
+            const query = document.getElementById('searchQuery').value;
+            const resultsDiv = document.getElementById('searchResults');
+            
+            setStepStatus('step-search', 'active');
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Searching repositories...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/search?q=${encodeURIComponent(query)}&limit=5&token=${validatedGithubToken}`);
+                const data = await response.json();
+                
+                if (response.ok && data.items) {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Found ${data.items.length} repositories
+                        </div>
+                    `;
+                    
+                    data.items.slice(0, 3).forEach(repo => {
+                        resultsDiv.innerHTML += `
+                            <div class="test-result info">
+                                📦 ${repo.full_name}<br>
+                                ${repo.description || 'No description'}<br>
+                                Language: ${repo.language || 'Unknown'}
+                            </div>
+                        `;
+                    });
+                    
+                    setStepStatus('step-search', 'completed');
+                    
+                    // Auto-fill first repo for analysis
+                    if (data.items.length > 0) {
+                        document.getElementById('repoName').value = data.items[0].full_name;
+                    }
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Search failed: ${data.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Search error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testRepositoryAnalysis() {
+            if (!validatedGithubToken) {
+                document.getElementById('analysisResults').innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please validate a GitHub token first
+                    </div>
+                `;
+                return;
+            }
+
+            const repoName = document.getElementById('repoName').value;
+            if (!repoName || !repoName.includes('/')) {
+                document.getElementById('analysisResults').innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please enter a valid repository name (owner/repo)
+                    </div>
+                `;
+                return;
+            }
+
+            const [owner, repo] = repoName.split('/');
+            const resultsDiv = document.getElementById('analysisResults');
+            
+            setStepStatus('step-analyze', 'active');
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Analyzing repository...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/repos/${owner}/${repo}/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token: validatedGithubToken }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.hasTerraform) {
+                        resultsDiv.innerHTML = `
+                            <div class="test-result success">
+                                ✅ Repository analysis successful!<br>
+                                Terraform files found: ${data.terraformFiles?.length || 0}<br>
+                                Suggested name: ${data.suggestedName}<br>
+                                Main files: ${data.mainFiles?.join(', ') || 'None'}
+                            </div>
+                        `;
+                        setStepStatus('step-analyze', 'completed');
+                        
+                        // Auto-fill template name
+                        document.getElementById('templateName').value = data.suggestedName || repoName.replace('/', '-');
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="test-result warning">
+                                ⚠️ No Terraform files found in repository
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Analysis failed: ${data.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Analysis error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testTemplateImport() {
+            if (!validatedGithubToken) {
+                document.getElementById('importResults').innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please validate a GitHub token first
+                    </div>
+                `;
+                return;
+            }
+
+            const repoName = document.getElementById('repoName').value;
+            const templateName = document.getElementById('templateName').value;
+            
+            if (!repoName || !templateName) {
+                document.getElementById('importResults').innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please enter repository name and template name
+                    </div>
+                `;
+                return;
+            }
+
+            const [owner, repo] = repoName.split('/');
+            const resultsDiv = document.getElementById('importResults');
+            
+            setStepStatus('step-import', 'active');
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Importing template...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/repos/${owner}/${repo}/create-template`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        token: validatedGithubToken,
+                        templateName: templateName,
+                        description: `Template imported from ${repoName}`,
+                        mainFile: 'main.tf'
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Template imported successfully!<br>
+                            Template ID: ${data.templateId}<br>
+                            Name: ${data.template.name}
+                        </div>
+                    `;
+                    setStepStatus('step-import', 'completed');
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Import failed: ${data.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Import error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            await testAuthentication();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Skip token tests if no token provided
+            const token = document.getElementById('githubToken').value;
+            if (token) {
+                await testTokenValidation();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                if (validatedGithubToken) {
+                    await testRepositorySearch();
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } else {
+                document.getElementById('tokenResults').innerHTML = `
+                    <div class="test-result warning">
+                        ⚠️ Skipping GitHub tests - no token provided<br>
+                        Please add a GitHub Personal Access Token to test the full workflow
+                    </div>
+                `;
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('authResults').innerHTML = '';
+            document.getElementById('tokenResults').innerHTML = '';
+            document.getElementById('searchResults').innerHTML = '';
+            document.getElementById('analysisResults').innerHTML = '';
+            document.getElementById('importResults').innerHTML = '';
+            
+            // Reset step indicators
+            ['step-auth', 'step-token', 'step-search', 'step-analyze', 'step-import'].forEach(id => {
+                setStepStatus(id, '');
+            });
+        }
+
+        // Auto-run basic tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testAuthentication();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+{
+  "name": "RDS Database",
+  "description": "Deploy a comprehensive Amazon RDS database instance with security groups, parameter groups, and backup configurations",
+  "category": "Database",
+  "terraformCode": "# Data sources for availability zones\ndata \"aws_availability_zones\" \"available\" {\n  state = \"available\"\n}\n\n# Local values for computed configurations\nlocals {\n  azs = slice(data.aws_availability_zones.available.names, 0, 2)\n  \n  common_tags = {\n    Name        = var.identifier\n    Environment = var.environment\n    Module      = \"rds-database\"\n    Terraform   = \"true\"\n  }\n  \n  # Engine-specific defaults\n  engine_defaults = {\n    mysql = {\n      port = 3306\n      parameter_group_family = \"mysql8.0\"\n    }\n    postgres = {\n      port = 5432\n      parameter_group_family = \"postgres14\"\n    }\n    mariadb = {\n      port = 3306\n      parameter_group_family = \"mariadb10.6\"\n    }\n  }\n  \n  final_port = var.port != null ? var.port : local.engine_defaults[var.engine].port\n  final_parameter_group_family = var.parameter_group_family != null ? var.parameter_group_family : local.engine_defaults[var.engine].parameter_group_family\n}\n\n# VPC for RDS (if create_vpc is true)\nresource \"aws_vpc\" \"rds_vpc\" {\n  count = var.create_vpc ? 1 : 0\n  \n  cidr_block           = var.vpc_cidr\n  enable_dns_hostnames = true\n  enable_dns_support   = true\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.identifier}-vpc\"\n    }\n  )\n}\n\n# Internet Gateway (if create_vpc is true)\nresource \"aws_internet_gateway\" \"rds_igw\" {\n  count = var.create_vpc ? 1 : 0\n  \n  vpc_id = aws_vpc.rds_vpc[0].id\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.identifier}-igw\"\n    }\n  )\n}\n\n# Private Subnets for RDS\nresource \"aws_subnet\" \"rds_private\" {\n  count = var.create_vpc ? length(var.private_subnet_cidrs) : 0\n  \n  vpc_id            = aws_vpc.rds_vpc[0].id\n  cidr_block        = var.private_subnet_cidrs[count.index]\n  availability_zone = local.azs[count.index]\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.identifier}-private-${local.azs[count.index]}\"\n    }\n  )\n}\n\n# DB Subnet Group\nresource \"aws_db_subnet_group\" \"main\" {\n  name       = \"${var.identifier}-subnet-group\"\n  subnet_ids = var.create_vpc ? aws_subnet.rds_private[*].id : var.subnet_ids\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.identifier}-subnet-group\"\n    }\n  )\n}\n\n# Security Group for RDS\nresource \"aws_security_group\" \"rds\" {\n  name        = \"${var.identifier}-rds-sg\"\n  description = \"Security group for ${var.identifier} RDS instance\"\n  vpc_id      = var.create_vpc ? aws_vpc.rds_vpc[0].id : var.vpc_id\n  \n  # Database access from allowed security groups\n  dynamic \"ingress\" {\n    for_each = var.allowed_security_groups\n    content {\n      description     = \"Database access from security group\"\n      from_port       = local.final_port\n      to_port         = local.final_port\n      protocol        = \"tcp\"\n      security_groups = [ingress.value]\n    }\n  }\n  \n  # Database access from allowed CIDR blocks\n  dynamic \"ingress\" {\n    for_each = length(var.allowed_cidr_blocks) > 0 ? [1] : []\n    content {\n      description = \"Database access from CIDR blocks\"\n      from_port   = local.final_port\n      to_port     = local.final_port\n      protocol    = \"tcp\"\n      cidr_blocks = var.allowed_cidr_blocks\n    }\n  }\n  \n  egress {\n    description = \"All outbound traffic\"\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"-1\"\n    cidr_blocks = [\"0.0.0.0/0\"]\n  }\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.identifier}-rds-sg\"\n    }\n  )\n}\n\n# KMS Key for encryption (if create_kms_key is true)\nresource \"aws_kms_key\" \"rds\" {\n  count = var.create_kms_key ? 1 : 0\n  \n  description             = \"KMS key for ${var.identifier} RDS encryption\"\n  deletion_window_in_days = var.kms_key_deletion_window\n  \n  tags = merge(\n    local.common_tags,\n    {\n      Name = \"${var.identifier}-kms-key\"\n    }\n  )\n}\n\nresource \"aws_kms_alias\" \"rds\" {\n  count = var.create_kms_key ? 1 : 0\n  \n  name          = \"alias/${var.identifier}-rds\"\n  target_key_id = aws_kms_key.rds[0].key_id\n}",
+  "variables": [
+    {
+      "name": "identifier",
+      "type": "string",
+      "description": "The name of the RDS instance",
+      "required": true
+    },
+    {
+      "name": "engine",
+      "type": "string",
+      "description": "The database engine",
+      "required": false,
+      "default": "mysql",
+      "options": ["mysql", "postgres", "mariadb", "oracle-ee", "oracle-se2", "sqlserver-ex", "sqlserver-web", "sqlserver-se", "sqlserver-ee"]
+    },
+    {
+      "name": "engine_version",
+      "type": "string",
+      "description": "The engine version to use",
+      "required": false,
+      "default": "8.0"
+    },
+    {
+      "name": "instance_class",
+      "type": "string",
+      "description": "The instance type of the RDS instance",
+      "required": false,
+      "default": "db.t3.micro",
+      "options": ["db.t3.micro", "db.t3.small", "db.t3.medium", "db.t3.large", "db.t3.xlarge", "db.t3.2xlarge", "db.m5.large", "db.m5.xlarge", "db.m5.2xlarge", "db.m5.4xlarge", "db.r5.large", "db.r5.xlarge", "db.r5.2xlarge"]
+    },
+    {
+      "name": "allocated_storage",
+      "type": "number",
+      "description": "The allocated storage in gigabytes",
+      "required": false,
+      "default": 20
+    },
+    {
+      "name": "max_allocated_storage",
+      "type": "number",
+      "description": "The upper limit to which Amazon RDS can automatically scale the storage",
+      "required": false,
+      "default": 100
+    },
+    {
+      "name": "storage_type",
+      "type": "string",
+      "description": "One of 'standard' (magnetic), 'gp2' (general purpose SSD), or 'io1' (provisioned IOPS SSD)",
+      "required": false,
+      "default": "gp2",
+      "options": ["standard", "gp2", "gp3", "io1", "io2"]
+    },
+    {
+      "name": "storage_encrypted",
+      "type": "boolean",
+      "description": "Specifies whether the DB instance is encrypted",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "create_kms_key",
+      "type": "boolean",
+      "description": "Whether to create a KMS key for encryption",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "kms_key_deletion_window",
+      "type": "number",
+      "description": "The waiting period, specified in number of days",
+      "required": false,
+      "default": 7
+    },
+    {
+      "name": "db_name",
+      "type": "string",
+      "description": "The name of the database to create when the DB instance is created",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "description": "Username for the master DB user",
+      "required": false,
+      "default": "admin"
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "description": "Password for the master DB user (leave empty to auto-generate)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "manage_master_user_password",
+      "type": "boolean",
+      "description": "Set to true to allow RDS to manage the master user password in Secrets Manager",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "The port on which the DB accepts connections (leave empty for engine default)",
+      "required": false,
+      "default": null
+    },
+    {
+      "name": "vpc_id",
+      "type": "string",
+      "description": "ID of the VPC where to create security group (required if create_vpc is false)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "subnet_ids",
+      "type": "list",
+      "description": "A list of VPC subnet IDs (required if create_vpc is false)",
+      "required": false,
+      "default": []
+    },
+    {
+      "name": "create_vpc",
+      "type": "boolean",
+      "description": "Whether to create VPC",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "vpc_cidr",
+      "type": "string",
+      "description": "CIDR block for VPC",
+      "required": false,
+      "default": "10.0.0.0/16"
+    },
+    {
+      "name": "private_subnet_cidrs",
+      "type": "list",
+      "description": "CIDR blocks for private subnets",
+      "required": false,
+      "default": ["10.0.1.0/24", "10.0.2.0/24"]
+    },
+    {
+      "name": "allowed_security_groups",
+      "type": "list",
+      "description": "List of security group IDs allowed to access the RDS instance",
+      "required": false,
+      "default": []
+    },
+    {
+      "name": "allowed_cidr_blocks",
+      "type": "list",
+      "description": "List of CIDR blocks allowed to access the RDS instance",
+      "required": false,
+      "default": []
+    },
+    {
+      "name": "publicly_accessible",
+      "type": "boolean",
+      "description": "Bool to control if instance is publicly accessible",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "backup_retention_period",
+      "type": "number",
+      "description": "The days to retain backups for",
+      "required": false,
+      "default": 7
+    },
+    {
+      "name": "backup_window",
+      "type": "string",
+      "description": "The daily time range (in UTC) during which automated backups are created",
+      "required": false,
+      "default": "03:00-04:00"
+    },
+    {
+      "name": "maintenance_window",
+      "type": "string",
+      "description": "The window to perform maintenance in",
+      "required": false,
+      "default": "sun:04:00-sun:05:00"
+    },
+    {
+      "name": "multi_az",
+      "type": "boolean",
+      "description": "Specifies if the RDS instance is multi-AZ",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "deletion_protection",
+      "type": "boolean",
+      "description": "The database can't be deleted when this value is set to true",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "skip_final_snapshot",
+      "type": "boolean",
+      "description": "Determines whether a final DB snapshot is created before the DB instance is deleted",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "parameter_group_family",
+      "type": "string",
+      "description": "The DB parameter group family (leave empty for engine default)",
+      "required": false,
+      "default": null
+    },
+    {
+      "name": "environment",
+      "type": "string",
+      "description": "Environment name",
+      "required": false,
+      "default": "dev",
+      "options": ["dev", "staging", "prod"]
+    }
+  ]
+}

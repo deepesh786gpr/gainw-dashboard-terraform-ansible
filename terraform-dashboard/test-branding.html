@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tietoevry Branding Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .branding-preview {
+            background: #1976d2;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            position: relative;
+            min-height: 400px;
+        }
+        .sidebar-mockup {
+            background: white;
+            width: 240px;
+            height: 400px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            background: #f8f9fa;
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .terraform-icon {
+            width: 24px;
+            height: 24px;
+            background: #1976d2;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .sidebar-title {
+            color: #1976d2;
+            font-weight: 600;
+            font-size: 18px;
+        }
+        .sidebar-menu {
+            flex-grow: 1;
+            padding: 8px 0;
+        }
+        .menu-item {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #666;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .menu-item.active {
+            background: rgba(25, 118, 210, 0.1);
+            color: #1976d2;
+            border-left-color: #1976d2;
+        }
+        .menu-icon {
+            width: 20px;
+            height: 20px;
+            background: #ccc;
+            border-radius: 2px;
+        }
+        .menu-item.active .menu-icon {
+            background: #1976d2;
+        }
+        .tietoevry-branding {
+            padding: 16px;
+            border-top: 2px solid #1976d2;
+            background: linear-gradient(135deg, rgba(25, 118, 210, 0.1), rgba(25, 118, 210, 0.05));
+            text-align: center;
+            position: relative;
+        }
+        .tietoevry-branding::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #1976d2, #e91e63);
+        }
+        .tietoevry-text {
+            background: linear-gradient(45deg, #1976d2, #e91e63);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .tietoevry-subtitle {
+            color: #666;
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 4px;
+            opacity: 0.8;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .feature-list li:before {
+            content: "✅";
+            font-size: 16px;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        .info-box h4 {
+            margin: 0 0 8px 0;
+            color: #1976d2;
+        }
+        .screenshot-frame {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 4px;
+            background: white;
+            margin: 20px 0;
+        }
+        .screenshot-placeholder {
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+            height: 300px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏢 Tietoevry Branding Integration</h1>
+        <p>Terraform Dashboard now features Tietoevry branding in the sidebar</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Sidebar Branding Preview</h2>
+        <p>The Tietoevry branding has been added to the bottom left of the sidebar navigation.</p>
+        
+        <div class="sidebar-mockup">
+            <div class="sidebar-header">
+                <div class="terraform-icon">T</div>
+                <div class="sidebar-title">Terraform Dashboard</div>
+            </div>
+            
+            <div class="sidebar-menu">
+                <div class="menu-item active">
+                    <div class="menu-icon"></div>
+                    <span>Dashboard</span>
+                </div>
+                <div class="menu-item">
+                    <div class="menu-icon"></div>
+                    <span>Deployments</span>
+                </div>
+                <div class="menu-item">
+                    <div class="menu-icon"></div>
+                    <span>Templates</span>
+                </div>
+                <div class="menu-item">
+                    <div class="menu-icon"></div>
+                    <span>GitHub Import</span>
+                </div>
+                <div class="menu-item">
+                    <div class="menu-icon"></div>
+                    <span>Instances</span>
+                </div>
+                <div class="menu-item">
+                    <div class="menu-icon"></div>
+                    <span>Settings</span>
+                </div>
+            </div>
+            
+            <div class="tietoevry-branding">
+                <div class="tietoevry-text">⚡ Powered by Tietoevry</div>
+                <div class="tietoevry-subtitle">Technology Services</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎨 Branding Implementation Details</h2>
+        
+        <div class="info-box">
+            <h4>Location</h4>
+            <p>The Tietoevry branding is positioned at the bottom of the left sidebar, below all navigation menu items.</p>
+        </div>
+
+        <div class="info-box">
+            <h4>Enhanced Design</h4>
+            <p>The branding now features a highlighted, premium design that stands out while maintaining professionalism:</p>
+            <ul class="feature-list">
+                <li>Bold gradient text with "⚡ Powered by Tietoevry"</li>
+                <li>Colorful gradient border (blue to pink)</li>
+                <li>Subtle gradient background for visual depth</li>
+                <li>Lightning bolt emoji for energy and innovation</li>
+                <li>"Technology Services" subtitle for context</li>
+                <li>Hover effects for interactivity</li>
+                <li>Uppercase text for strong brand presence</li>
+                <li>Professional gradient colors matching theme</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h4>Technical Implementation</h4>
+            <p>The branding was added to the Layout component with the following features:</p>
+            <ul class="feature-list">
+                <li>Flexbox layout ensures it stays at the bottom</li>
+                <li>Consistent styling with theme colors</li>
+                <li>Proper spacing and typography</li>
+                <li>Works in both light and dark themes</li>
+                <li>Mobile responsive design</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🌐 Live Dashboard</h2>
+        <p>You can see the Tietoevry branding in action on the live dashboard:</p>
+        
+        <div class="screenshot-frame">
+            <div class="screenshot-placeholder">
+                Visit http://192.168.31.94:3000/dashboard to see the live branding
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="http://192.168.31.94:3000/dashboard" 
+               style="background: #1976d2; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                🚀 Open Live Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Verification Checklist</h2>
+        <ul class="feature-list">
+            <li>Tietoevry branding visible in sidebar</li>
+            <li>Positioned at bottom left as requested</li>
+            <li>Consistent with dashboard design</li>
+            <li>Works on desktop and mobile</li>
+            <li>Maintains professional appearance</li>
+            <li>Non-intrusive but clearly visible</li>
+        </ul>
+    </div>
+
+    <script>
+        // Auto-open dashboard after 2 seconds
+        setTimeout(() => {
+            if (confirm('Would you like to open the live dashboard to see the Tietoevry branding?')) {
+                window.open('http://192.168.31.94:3000/dashboard', '_blank');
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

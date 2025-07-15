@@ -1,0 +1,33 @@
+# Terraform files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terragrunt-cache
+
+# Provider binaries
+**/terraform-provider-*
+
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.local
+
+# Build files
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Database files
+*.db
+*.sqlite
+
+# OS specific files
+.DS_Store
+.idea/
+.vscode/

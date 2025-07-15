@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Deployment Refresh</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .test-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1565c0;
+        }
+        .deployment-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #1976d2;
+            margin: 10px 0;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-running {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔄 Deployment Refresh Test</h1>
+        <p>Testing deployment refresh functionality and authentication</p>
+        <button class="test-button" onclick="runAllTests()">🧪 Run All Tests</button>
+        <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 Authentication Test</h2>
+        <button class="test-button" onclick="testAuthentication()">Test Login</button>
+        <div id="authResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Deployments API Test</h2>
+        <button class="test-button" onclick="testDeploymentsAPI()">Test Deployments API</button>
+        <button class="test-button" onclick="testRefreshFunctionality()">Test Refresh Functionality</button>
+        <div id="deploymentsResults"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.31.94:5000';
+        let authToken = null;
+
+        async function testAuthentication() {
+            const resultsDiv = document.getElementById('authResults');
+            
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Testing authentication...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    authToken = data.tokens.accessToken;
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Authentication successful!<br>
+                            Token obtained and stored for API calls.
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Authentication failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Authentication error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testDeploymentsAPI() {
+            const resultsDiv = document.getElementById('deploymentsResults');
+            
+            if (!authToken) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ No auth token. Please run authentication test first.
+                    </div>
+                `;
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Testing deployments API...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/deployments`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+                
+                const deployments = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Deployments API working!<br>
+                            Found ${Array.isArray(deployments) ? deployments.length : 'unknown'} deployments
+                        </div>
+                    `;
+                    
+                    if (Array.isArray(deployments) && deployments.length > 0) {
+                        deployments.slice(0, 3).forEach(deployment => {
+                            const statusClass = getStatusClass(deployment.status);
+                            resultsDiv.innerHTML += `
+                                <div class="deployment-card">
+                                    <strong>Name:</strong> ${deployment.name}<br>
+                                    <strong>Status:</strong> <span class="status-badge ${statusClass}">${deployment.status}</span><br>
+                                    <strong>Template:</strong> ${deployment.template_id || 'Unknown'}<br>
+                                    <strong>Updated:</strong> ${deployment.updated_at || 'Unknown'}
+                                </div>
+                            `;
+                        });
+                        
+                        if (deployments.length > 3) {
+                            resultsDiv.innerHTML += `
+                                <div class="test-result info">
+                                    ... and ${deployments.length - 3} more deployments
+                                </div>
+                            `;
+                        }
+                    }
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Deployments API failed: ${deployments.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Deployments API error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testRefreshFunctionality() {
+            const resultsDiv = document.getElementById('deploymentsResults');
+            
+            if (!authToken) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ No auth token. Please run authentication test first.
+                    </div>
+                `;
+                return;
+            }
+
+            resultsDiv.innerHTML += '<div class="test-result info">🔄 Testing refresh functionality (multiple calls)...</div>';
+
+            try {
+                const startTime = Date.now();
+                
+                // Make multiple rapid calls to simulate refresh button clicks
+                const promises = [];
+                for (let i = 0; i < 3; i++) {
+                    promises.push(
+                        fetch(`${API_BASE_URL}/api/deployments`, {
+                            headers: {
+                                'Authorization': `Bearer ${authToken}`,
+                            },
+                        })
+                    );
+                }
+                
+                const responses = await Promise.all(promises);
+                const endTime = Date.now();
+                
+                const allSuccessful = responses.every(response => response.ok);
+                
+                if (allSuccessful) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Refresh functionality working!<br>
+                            Made 3 concurrent API calls successfully<br>
+                            Total time: ${endTime - startTime}ms<br>
+                            Average response time: ${Math.round((endTime - startTime) / 3)}ms per call
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Some refresh calls failed<br>
+                            Successful calls: ${responses.filter(r => r.ok).length}/3
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Refresh functionality error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function getStatusClass(status) {
+            switch (status) {
+                case 'success':
+                case 'deployed':
+                    return 'status-success';
+                case 'running':
+                case 'applying':
+                case 'planning':
+                    return 'status-running';
+                case 'error':
+                case 'failed':
+                    return 'status-error';
+                default:
+                    return 'status-running';
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            await testAuthentication();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testDeploymentsAPI();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testRefreshFunctionality();
+        }
+
+        function clearResults() {
+            document.getElementById('authResults').innerHTML = '';
+            document.getElementById('deploymentsResults').innerHTML = '';
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

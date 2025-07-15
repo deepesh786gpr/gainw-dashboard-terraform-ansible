@@ -1,0 +1,173 @@
+{
+  "name": "Lambda Function",
+  "description": "Deploy a comprehensive AWS Lambda function with IAM roles, environment variables, and optional API Gateway integration",
+  "category": "Serverless",
+  "terraformCode": "# Local values for computed configurations\nlocals {\n  common_tags = {\n    Name        = var.function_name\n    Environment = var.environment\n    Module      = \"lambda-function\"\n    Terraform   = \"true\"\n  }\n  \n  # Create a simple Python function if no source is provided\n  default_source_code = <<EOF\nimport json\n\ndef handler(event, context):\n    return {\n        'statusCode': 200,\n        'body': json.dumps({\n            'message': 'Hello from Lambda!',\n            'event': event\n        })\n    }\nEOF\n}\n\n# Create a zip file for the Lambda function if source_path is not provided\ndata \"archive_file\" \"lambda_zip\" {\n  count = var.source_path == null && var.s3_bucket == null && var.image_uri == null ? 1 : 0\n  \n  type        = \"zip\"\n  output_path = \"/tmp/${var.function_name}.zip\"\n  \n  source {\n    content  = local.default_source_code\n    filename = \"index.py\"\n  }\n}\n\n# Create a zip file from source path if provided\ndata \"archive_file\" \"lambda_source_zip\" {\n  count = var.source_path != null ? 1 : 0\n  \n  type        = \"zip\"\n  source_dir  = var.source_path\n  output_path = \"/tmp/${var.function_name}-source.zip\"\n}\n\n# IAM role for Lambda function\nresource \"aws_iam_role\" \"lambda_role\" {\n  name = \"${var.function_name}-lambda-role\"\n  \n  assume_role_policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [\n      {\n        Action = \"sts:AssumeRole\"\n        Effect = \"Allow\"\n        Principal = {\n          Service = \"lambda.amazonaws.com\"\n        }\n      }\n    ]\n  })\n  \n  tags = local.common_tags\n}\n\n# Basic Lambda execution policy\nresource \"aws_iam_role_policy_attachment\" \"lambda_basic\" {\n  policy_arn = \"arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole\"\n  role       = aws_iam_role.lambda_role.name\n}\n\n# VPC execution policy (if VPC config is provided)\nresource \"aws_iam_role_policy_attachment\" \"lambda_vpc\" {\n  count = var.vpc_config != null ? 1 : 0\n  \n  policy_arn = \"arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole\"\n  role       = aws_iam_role.lambda_role.name\n}\n\n# Custom policies for Lambda function\nresource \"aws_iam_role_policy\" \"lambda_custom\" {\n  count = length(var.custom_policies) > 0 ? 1 : 0\n  \n  name = \"${var.function_name}-custom-policy\"\n  role = aws_iam_role.lambda_role.id\n  \n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = var.custom_policies\n  })\n}\n\n# CloudWatch Log Group\nresource \"aws_cloudwatch_log_group\" \"lambda_logs\" {\n  name              = \"/aws/lambda/${var.function_name}\"\n  retention_in_days = var.log_retention_in_days\n  kms_key_id        = var.log_kms_key_id\n  \n  tags = local.common_tags\n}\n\n# Lambda function\nresource \"aws_lambda_function\" \"main\" {\n  function_name = var.function_name\n  role          = aws_iam_role.lambda_role.arn\n  handler       = var.handler\n  runtime       = var.runtime\n  timeout       = var.timeout\n  memory_size   = var.memory_size\n  package_type  = var.package_type\n  \n  # Source code configuration\n  dynamic \"filename\" {\n    for_each = var.source_path != null ? [data.archive_file.lambda_source_zip[0].output_path] : (var.s3_bucket == null && var.image_uri == null ? [data.archive_file.lambda_zip[0].output_path] : [])\n    content {\n      filename = filename.value\n    }\n  }\n  \n  s3_bucket         = var.s3_bucket\n  s3_key            = var.s3_key\n  s3_object_version = var.s3_object_version\n  image_uri         = var.image_uri\n  \n  # Environment variables\n  dynamic \"environment\" {\n    for_each = length(var.environment_variables) > 0 ? [1] : []\n    content {\n      variables = var.environment_variables\n    }\n  }\n  \n  # VPC configuration\n  dynamic \"vpc_config\" {\n    for_each = var.vpc_config != null ? [var.vpc_config] : []\n    content {\n      subnet_ids         = vpc_config.value.subnet_ids\n      security_group_ids = vpc_config.value.security_group_ids\n    }\n  }\n  \n  # Dead letter queue configuration\n  dynamic \"dead_letter_config\" {\n    for_each = var.dead_letter_target_arn != null ? [1] : []\n    content {\n      target_arn = var.dead_letter_target_arn\n    }\n  }\n  \n  # Tracing configuration\n  dynamic \"tracing_config\" {\n    for_each = var.tracing_mode != null ? [1] : []\n    content {\n      mode = var.tracing_mode\n    }\n  }\n  \n  # File system configuration\n  dynamic \"file_system_config\" {\n    for_each = var.file_system_config != null ? [var.file_system_config] : []\n    content {\n      arn              = file_system_config.value.arn\n      local_mount_path = file_system_config.value.local_mount_path\n    }\n  }\n  \n  # Image configuration\n  dynamic \"image_config\" {\n    for_each = var.image_config != null ? [var.image_config] : []\n    content {\n      command           = image_config.value.command\n      entry_point       = image_config.value.entry_point\n      working_directory = image_config.value.working_directory\n    }\n  }\n  \n  layers                         = var.layers\n  reserved_concurrent_executions = var.reserved_concurrent_executions != -1 ? var.reserved_concurrent_executions : null\n  publish                        = var.publish\n  kms_key_arn                   = var.kms_key_arn\n  \n  tags = local.common_tags\n  \n  depends_on = [\n    aws_iam_role_policy_attachment.lambda_basic,\n    aws_cloudwatch_log_group.lambda_logs\n  ]\n}",
+  "variables": [
+    {
+      "name": "function_name",
+      "type": "string",
+      "description": "A unique name for your Lambda Function",
+      "required": true
+    },
+    {
+      "name": "handler",
+      "type": "string",
+      "description": "The function entrypoint in your code",
+      "required": false,
+      "default": "index.handler"
+    },
+    {
+      "name": "runtime",
+      "type": "string",
+      "description": "The runtime environment for the Lambda function",
+      "required": false,
+      "default": "python3.9",
+      "options": ["python3.8", "python3.9", "python3.10", "python3.11", "nodejs16.x", "nodejs18.x", "nodejs20.x", "java8", "java11", "java17", "java21", "dotnet6", "dotnet8", "go1.x", "ruby3.2", "provided.al2", "provided.al2023"]
+    },
+    {
+      "name": "timeout",
+      "type": "number",
+      "description": "The amount of time your Lambda Function has to run in seconds",
+      "required": false,
+      "default": 3
+    },
+    {
+      "name": "memory_size",
+      "type": "number",
+      "description": "Amount of memory in MB your Lambda Function can use at runtime",
+      "required": false,
+      "default": 128
+    },
+    {
+      "name": "source_path",
+      "type": "string",
+      "description": "Path to the source code directory (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "s3_bucket",
+      "type": "string",
+      "description": "The S3 bucket location containing the function's deployment package (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "s3_key",
+      "type": "string",
+      "description": "The S3 key of an object containing the function's deployment package (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "image_uri",
+      "type": "string",
+      "description": "The URI of a container image in the Amazon ECR registry (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "package_type",
+      "type": "string",
+      "description": "The Lambda deployment package type",
+      "required": false,
+      "default": "Zip",
+      "options": ["Zip", "Image"]
+    },
+    {
+      "name": "environment_variables",
+      "type": "map",
+      "description": "A map that defines environment variables for the Lambda Function",
+      "required": false,
+      "default": {}
+    },
+    {
+      "name": "dead_letter_target_arn",
+      "type": "string",
+      "description": "The ARN of an SQS queue or SNS topic for dead letter queue (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "tracing_mode",
+      "type": "string",
+      "description": "Tracing mode of the Lambda Function",
+      "required": false,
+      "default": "",
+      "options": ["", "PassThrough", "Active"]
+    },
+    {
+      "name": "layers",
+      "type": "list",
+      "description": "List of Lambda Layer Version ARNs to attach to your Lambda Function",
+      "required": false,
+      "default": []
+    },
+    {
+      "name": "reserved_concurrent_executions",
+      "type": "number",
+      "description": "The amount of reserved concurrent executions for this lambda function (-1 for unreserved)",
+      "required": false,
+      "default": -1
+    },
+    {
+      "name": "publish",
+      "type": "boolean",
+      "description": "Whether to publish creation/change as new Lambda Function Version",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "kms_key_arn",
+      "type": "string",
+      "description": "The ARN of the KMS key used to encrypt environment variables (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "log_retention_in_days",
+      "type": "number",
+      "description": "Specifies the number of days you want to retain log events in the specified log group",
+      "required": false,
+      "default": 14,
+      "options": [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+    },
+    {
+      "name": "log_kms_key_id",
+      "type": "string",
+      "description": "The ARN of the KMS Key to use when encrypting log data (optional)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "custom_policies",
+      "type": "list",
+      "description": "List of custom IAM policy statements for the Lambda function",
+      "required": false,
+      "default": []
+    },
+    {
+      "name": "create_api_gateway",
+      "type": "boolean",
+      "description": "Whether to create an API Gateway for the Lambda function",
+      "required": false,
+      "default": false
+    },
+    {
+      "name": "api_gateway_stage_name",
+      "type": "string",
+      "description": "The name of the API Gateway stage",
+      "required": false,
+      "default": "prod"
+    },
+    {
+      "name": "environment",
+      "type": "string",
+      "description": "Environment name",
+      "required": false,
+      "default": "dev",
+      "options": ["dev", "staging", "prod"]
+    }
+  ]
+}

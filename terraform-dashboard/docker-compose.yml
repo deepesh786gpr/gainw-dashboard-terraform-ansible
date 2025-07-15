@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - terraform-dashboard
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - DATABASE_PATH=/app/data/terraform-dashboard.db
+      - JWT_SECRET=terraform-dashboard-jwt-secret-change-in-production
+      - FRONTEND_URL=http://localhost:3000
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - TERRAFORM_PATH=/usr/local/bin/terraform
+      - TERRAGRUNT_PATH=/usr/local/bin/terragrunt
+      - TERRAFORM_WORKING_DIR=/app/terraform-workspace
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - terraform-data:/app/data
+      - terraform-workspace:/app/terraform-workspace
+      - ~/.aws:/root/.aws:ro  # Mount AWS credentials
+    networks:
+      - terraform-dashboard
+
+volumes:
+  terraform-data:
+  terraform-workspace:
+
+networks:
+  terraform-dashboard:
+    driver: bridge

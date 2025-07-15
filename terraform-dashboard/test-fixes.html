@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Dashboard Fixes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .test-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1565c0;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .form-group textarea {
+            height: 60px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔧 Dashboard Fixes Test</h1>
+        <p>Testing GitHub Token Management and Instance Control fixes</p>
+        <button class="test-button" onclick="runAllTests()">🧪 Run All Tests</button>
+        <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 Authentication</h2>
+        <button class="test-button" onclick="testLogin()">Login</button>
+        <div id="authResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔑 GitHub Token Management</h2>
+        <button class="test-button" onclick="testGitHubTokens()">Get Tokens</button>
+        <button class="test-button" onclick="showAddTokenForm()">Add Token</button>
+        
+        <div id="addTokenForm" style="display: none; margin-top: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 4px;">
+            <h4>Add GitHub Token</h4>
+            <div class="form-group">
+                <label>Token Name:</label>
+                <input type="text" id="tokenName" placeholder="e.g., my-github-token">
+            </div>
+            <div class="form-group">
+                <label>GitHub Token:</label>
+                <input type="password" id="tokenValue" placeholder="ghp_...">
+            </div>
+            <div class="form-group">
+                <label>Description:</label>
+                <textarea id="tokenDescription" placeholder="Optional description"></textarea>
+            </div>
+            <button class="test-button" onclick="addGitHubToken()">Save Token</button>
+            <button class="test-button" onclick="hideAddTokenForm()">Cancel</button>
+        </div>
+        
+        <div id="githubResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🖥️ Instance Control</h2>
+        <button class="test-button" onclick="testInstancesList()">Get Instances</button>
+        <button class="test-button" onclick="testInstanceDetails()">Get Instance Details</button>
+        <button class="test-button" onclick="testInstanceControl('start')">Test Start</button>
+        <button class="test-button" onclick="testInstanceControl('stop')">Test Stop</button>
+        <button class="test-button" onclick="testInstanceControl('restart')">Test Restart</button>
+        <div id="instancesResults"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.31.94:5000';
+        let authToken = null;
+        let testInstanceId = null;
+
+        async function testLogin() {
+            const resultsDiv = document.getElementById('authResults');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    authToken = data.tokens.accessToken;
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Login successful! Token obtained.
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Login failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Login error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testGitHubTokens() {
+            const resultsDiv = document.getElementById('githubResults');
+            
+            if (!authToken) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No auth token. Please login first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/tokens`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ GitHub tokens endpoint working! Found ${data.length} tokens.
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ GitHub tokens failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ GitHub tokens error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function showAddTokenForm() {
+            document.getElementById('addTokenForm').style.display = 'block';
+        }
+
+        function hideAddTokenForm() {
+            document.getElementById('addTokenForm').style.display = 'none';
+            document.getElementById('tokenName').value = '';
+            document.getElementById('tokenValue').value = '';
+            document.getElementById('tokenDescription').value = '';
+        }
+
+        async function addGitHubToken() {
+            const resultsDiv = document.getElementById('githubResults');
+            const name = document.getElementById('tokenName').value;
+            const token = document.getElementById('tokenValue').value;
+            const description = document.getElementById('tokenDescription').value;
+
+            if (!name || !token) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Please fill in token name and value.
+                    </div>
+                `;
+                return;
+            }
+
+            if (!authToken) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No auth token. Please login first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/tokens`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        token: token,
+                        description: description
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ GitHub token added successfully!
+                        </div>
+                    `;
+                    hideAddTokenForm();
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Add token failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Add token error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testInstancesList() {
+            const resultsDiv = document.getElementById('instancesResults');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.length > 0) {
+                        testInstanceId = data[0].id;
+                        resultsDiv.innerHTML += `
+                            <div class="test-result success">
+                                ✅ Instances list working! Found ${data.length} instances.
+                                <br>Test instance: ${testInstanceId} (${data[0].name})
+                            </div>
+                        `;
+                    } else {
+                        resultsDiv.innerHTML += `
+                            <div class="test-result info">
+                                ℹ️ No instances found in AWS account.
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Instances list failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Instances list error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testInstanceDetails() {
+            const resultsDiv = document.getElementById('instancesResults');
+            
+            if (!testInstanceId) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No test instance ID. Please run 'Get Instances' first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances/${testInstanceId}/details`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Instance details working!
+                            <br>Instance: ${data.name} (${data.state})
+                            <br>Type: ${data.type}, Zone: ${data.availabilityZone}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Instance details failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Instance details error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testInstanceControl(action) {
+            const resultsDiv = document.getElementById('instancesResults');
+            
+            if (!testInstanceId) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No test instance ID. Please run 'Get Instances' first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances/${testInstanceId}/${action}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Instance ${action} endpoint working!
+                            <br>Message: ${data.message}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Instance ${action} failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Instance ${action} error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            await testLogin();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testGitHubTokens();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testInstancesList();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testInstanceDetails();
+        }
+
+        function clearResults() {
+            document.getElementById('authResults').innerHTML = '';
+            document.getElementById('githubResults').innerHTML = '';
+            document.getElementById('instancesResults').innerHTML = '';
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

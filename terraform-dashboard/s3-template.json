@@ -1,0 +1,43 @@
+{
+  "name": "S3 Bucket",
+  "description": "Create an S3 bucket with encryption and versioning",
+  "category": "Storage",
+  "terraformCode": "resource \"aws_s3_bucket\" \"main\" {\n  bucket = var.bucket_name\n\n  tags = {\n    Name        = var.bucket_name\n    Environment = var.environment\n  }\n}\n\nresource \"aws_s3_bucket_versioning\" \"main\" {\n  bucket = aws_s3_bucket.main.id\n  versioning_configuration {\n    status = var.versioning_enabled ? \"Enabled\" : \"Disabled\"\n  }\n}\n\nresource \"aws_s3_bucket_server_side_encryption_configuration\" \"main\" {\n  bucket = aws_s3_bucket.main.id\n\n  rule {\n    apply_server_side_encryption_by_default {\n      sse_algorithm = var.encryption_algorithm\n    }\n    bucket_key_enabled = var.bucket_key_enabled\n  }\n}\n\nresource \"aws_s3_bucket_public_access_block\" \"main\" {\n  bucket = aws_s3_bucket.main.id\n\n  block_public_acls       = var.block_public_access\n  block_public_policy     = var.block_public_access\n  ignore_public_acls      = var.block_public_access\n  restrict_public_buckets = var.block_public_access\n}",
+  "variables": [
+    {
+      "name": "bucket_name",
+      "type": "string",
+      "description": "S3 bucket name (must be globally unique)",
+      "required": true
+    },
+    {
+      "name": "versioning_enabled",
+      "type": "boolean",
+      "description": "Enable S3 bucket versioning",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "encryption_algorithm",
+      "type": "string",
+      "description": "Server-side encryption algorithm",
+      "required": false,
+      "default": "AES256",
+      "options": ["AES256", "aws:kms"]
+    },
+    {
+      "name": "bucket_key_enabled",
+      "type": "boolean",
+      "description": "Enable S3 bucket key for KMS encryption",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "block_public_access",
+      "type": "boolean",
+      "description": "Block all public access to the bucket",
+      "required": false,
+      "default": true
+    }
+  ]
+}

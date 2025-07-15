@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Login Test</h1>
+  
+  <div class="form-group">
+    <label for="username">Username:</label>
+    <input type="text" id="username" value="admin">
+  </div>
+  
+  <div class="form-group">
+    <label for="password">Password:</label>
+    <input type="password" id="password" value="admin123">
+  </div>
+  
+  <div class="form-group">
+    <label>
+      <input type="checkbox" id="rememberMe"> Remember me
+    </label>
+  </div>
+  
+  <button onclick="login()">Login</button>
+  
+  <div id="result"></div>
+
+  <script>
+    async function login() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.textContent = 'Logging in...';
+      
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            rememberMe: document.getElementById('rememberMe').checked
+          }),
+        });
+        
+        const data = await response.json();
+        resultDiv.textContent = 'Status: ' + response.status + '\n\n' + JSON.stringify(data, null, 2);
+        
+        if (response.ok) {
+          // Store tokens in localStorage
+          localStorage.setItem('auth_tokens', JSON.stringify(data.tokens));
+          resultDiv.textContent += '\n\nTokens stored in localStorage!';
+        }
+      } catch (error) {
+        resultDiv.textContent = 'Error: ' + error.message;
+      }
+    }
+  </script>
+</body>
+</html>

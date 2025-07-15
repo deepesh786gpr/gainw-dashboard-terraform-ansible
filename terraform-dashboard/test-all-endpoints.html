@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terraform Dashboard - API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .test-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1565c0;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .endpoint-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .endpoint-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #1976d2;
+        }
+        .endpoint-method {
+            font-weight: bold;
+            color: #1976d2;
+        }
+        .endpoint-path {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Terraform Dashboard - Complete API Test</h1>
+        <p>Testing all API endpoints for network IP access</p>
+        <button class="test-button" onclick="runAllTests()">🧪 Run All Tests</button>
+        <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 Authentication Tests</h2>
+        <button class="test-button" onclick="testLogin()">Test Login</button>
+        <button class="test-button" onclick="testUserInfo()">Test User Info</button>
+        <div id="authResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Templates Tests</h2>
+        <button class="test-button" onclick="testTemplates()">Test Templates</button>
+        <div id="templatesResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 Deployments Tests</h2>
+        <button class="test-button" onclick="testDeployments()">Test Get Deployments</button>
+        <button class="test-button" onclick="testCreateDeployment()">Test Create Deployment</button>
+        <div id="deploymentsResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>💻 Instances Tests</h2>
+        <button class="test-button" onclick="testInstances()">Test Instances</button>
+        <div id="instancesResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔑 GitHub Tokens Tests</h2>
+        <button class="test-button" onclick="testGitHubTokens()">Test GitHub Tokens</button>
+        <div id="githubResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Available API Endpoints</h2>
+        <div class="endpoint-list">
+            <div class="endpoint-card">
+                <div class="endpoint-method">POST</div>
+                <div class="endpoint-path">/api/auth/login</div>
+                <div>User authentication</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">GET</div>
+                <div class="endpoint-path">/api/auth/me</div>
+                <div>Get current user info</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">GET</div>
+                <div class="endpoint-path">/api/templates</div>
+                <div>Get all templates (6 available)</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">GET</div>
+                <div class="endpoint-path">/api/deployments</div>
+                <div>Get all deployments</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">POST</div>
+                <div class="endpoint-path">/api/deployments</div>
+                <div>Create new deployment</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">GET</div>
+                <div class="endpoint-path">/api/instances</div>
+                <div>Get EC2 instances (3 sample instances)</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">GET</div>
+                <div class="endpoint-path">/api/github/tokens</div>
+                <div>Get GitHub tokens</div>
+            </div>
+            <div class="endpoint-card">
+                <div class="endpoint-method">POST</div>
+                <div class="endpoint-path">/api/github/tokens</div>
+                <div>Add GitHub token</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.31.94:5000';
+        let authToken = null;
+
+        async function testLogin() {
+            const resultsDiv = document.getElementById('authResults');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    authToken = data.tokens.accessToken;
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Login successful! User: ${data.user.username} (${data.user.role.name})
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Login failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Login error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testUserInfo() {
+            const resultsDiv = document.getElementById('authResults');
+            
+            if (!authToken) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No auth token. Please login first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ User info retrieved: ${data.user.username} with ${data.user.role.permissions.length} permissions
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ User info failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ User info error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testTemplates() {
+            const resultsDiv = document.getElementById('templatesResults');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/templates`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Templates loaded: ${data.length} templates available
+                            <br>Categories: ${[...new Set(data.map(t => t.category))].join(', ')}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Templates failed: ${response.statusText}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Templates error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testDeployments() {
+            const resultsDiv = document.getElementById('deploymentsResults');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/deployments`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Deployments loaded: ${data.length} deployments found
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Deployments failed: ${response.statusText}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Deployments error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testCreateDeployment() {
+            const resultsDiv = document.getElementById('deploymentsResults');
+            
+            if (!authToken) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No auth token. Please login first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/deployments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify({
+                        name: `test-deployment-${Date.now()}`,
+                        templateId: 'ec2-instance',
+                        environment: 'test',
+                        variables: {
+                            name: 'test-server',
+                            instance_type: 't3.micro'
+                        }
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Deployment created: ${data.deployment.name} (${data.deployment.status})
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Create deployment failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Create deployment error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testInstances() {
+            const resultsDiv = document.getElementById('instancesResults');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const runningInstances = data.filter(i => i.state === 'running').length;
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ Instances loaded: ${data.length} instances (${runningInstances} running)
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ Instances failed: ${response.statusText}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ Instances error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function testGitHubTokens() {
+            const resultsDiv = document.getElementById('githubResults');
+            
+            if (!authToken) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ No auth token. Please login first.
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/github/tokens`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result success">
+                            ✅ GitHub tokens loaded: ${data.length} tokens found
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="test-result error">
+                            ❌ GitHub tokens failed: ${data.error}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ GitHub tokens error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            // Run tests in sequence
+            await testLogin();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testUserInfo();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testTemplates();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testDeployments();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testCreateDeployment();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testInstances();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testGitHubTokens();
+        }
+
+        function clearResults() {
+            document.getElementById('authResults').innerHTML = '';
+            document.getElementById('templatesResults').innerHTML = '';
+            document.getElementById('deploymentsResults').innerHTML = '';
+            document.getElementById('instancesResults').innerHTML = '';
+            document.getElementById('githubResults').innerHTML = '';
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

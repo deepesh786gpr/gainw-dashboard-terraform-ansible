@@ -1,0 +1,136 @@
+{
+  "name": "EBS Volume Management",
+  "description": "Manage EBS volume size, type, and performance with automatic file system expansion",
+  "category": "Storage",
+  "terraformCode": "# Data source for volume information\ndata \"aws_ebs_volume\" \"target\" {\n  filter {\n    name   = \"volume-id\"\n    values = [var.volume_id]\n  }\n}\n\n# Data source for instance information (if provided)\ndata \"aws_instance\" \"target\" {\n  count       = var.instance_id != \"\" ? 1 : 0\n  instance_id = var.instance_id\n}\n\n# Local values for computed configurations\nlocals {\n  current_size = data.aws_ebs_volume.target.size\n  size_increase = var.new_size - local.current_size\n  needs_modification = var.new_size > local.current_size\n  \n  instance_ip = var.instance_id != \"\" ? (\n    data.aws_instance.target[0].public_ip != \"\" ?\n    data.aws_instance.target[0].public_ip :\n    data.aws_instance.target[0].private_ip\n  ) : \"\"\n  \n  fs_expand_command = var.file_system_type == \"ext4\" ? \"resize2fs\" : \"xfs_growfs\"\n  \n  volume_iops = var.iops != null ? var.iops : (\n    var.volume_type == \"gp3\" ? min(3000, max(3000, var.new_size * 3)) :\n    var.volume_type == \"io1\" || var.volume_type == \"io2\" ? min(64000, max(100, var.new_size * 50)) :\n    null\n  )\n  \n  volume_throughput = var.throughput != null ? var.throughput : (\n    var.volume_type == \"gp3\" ? min(1000, max(125, var.new_size / 4)) : null\n  )\n}\n\n# Create snapshot before modification (if enabled)\nresource \"aws_ebs_snapshot\" \"backup\" {\n  count       = var.backup_before_modification ? 1 : 0\n  volume_id   = var.volume_id\n  description = var.snapshot_description\n  \n  tags = merge(\n    var.tags,\n    {\n      Name        = \"${var.volume_id}-backup-${formatdate(\"YYYY-MM-DD-hhmm\", timestamp())}\"\n      Environment = var.environment\n      Purpose     = \"pre-modification-backup\"\n      VolumeId    = var.volume_id\n    }\n  )\n}\n\n# Modify the EBS volume\nresource \"aws_ebs_volume\" \"modified\" {\n  count = local.needs_modification ? 1 : 0\n  \n  # Use the existing volume's properties\n  availability_zone = data.aws_ebs_volume.target.availability_zone\n  size              = var.new_size\n  type              = var.volume_type\n  iops              = local.volume_iops\n  throughput        = local.volume_throughput\n  encrypted         = data.aws_ebs_volume.target.encrypted\n  kms_key_id        = data.aws_ebs_volume.target.kms_key_id\n  \n  tags = merge(\n    var.tags,\n    {\n      Name        = \"${var.volume_id}-modified\"\n      Environment = var.environment\n      OriginalId  = var.volume_id\n      ModifiedAt  = timestamp()\n    }\n  )\n  \n  depends_on = [aws_ebs_snapshot.backup]\n}\n\n# Wait for volume modification to complete\nresource \"null_resource\" \"wait_for_modification\" {\n  count = local.needs_modification && var.wait_for_modification ? 1 : 0\n  \n  provisioner \"local-exec\" {\n    command = <<-EOT\n      echo \"Waiting for volume modification to complete...\"\n      timeout ${var.modification_timeout * 60} bash -c '\n        while true; do\n          state=$(aws ec2 describe-volumes-modifications --volume-ids ${var.volume_id} --query \"VolumesModifications[0].ModificationState\" --output text 2>/dev/null || echo \"completed\")\n          if [ \"$state\" = \"completed\" ] || [ \"$state\" = \"optimizing\" ]; then\n            echo \"Volume modification completed\"\n            break\n          elif [ \"$state\" = \"failed\" ]; then\n            echo \"Volume modification failed\"\n            exit 1\n          fi\n          echo \"Current state: $state\"\n          sleep 10\n        done\n      '\n    EOT\n  }\n  \n  depends_on = [aws_ebs_volume.modified]\n}\n\n# Expand file system (if instance is provided)\nresource \"null_resource\" \"expand_filesystem\" {\n  count = local.needs_modification && var.expand_file_system && var.instance_id != \"\" ? 1 : 0\n  \n  connection {\n    type        = \"ssh\"\n    host        = local.instance_ip\n    user        = var.ssh_user\n    private_key = var.ssh_key_path != \"\" ? file(var.ssh_key_path) : null\n    port        = var.ssh_port\n    timeout     = \"${var.connection_timeout}s\"\n  }\n  \n  provisioner \"remote-exec\" {\n    inline = [\n      \"echo 'Expanding file system...'\",\n      \"sudo ${local.fs_expand_command} ${var.device_name}\",\n      \"echo 'File system expansion completed'\",\n      \"df -h ${var.device_name}\"\n    ]\n  }\n  \n  depends_on = [null_resource.wait_for_modification]\n}",
+  "variables": [
+    {
+      "name": "volume_id",
+      "type": "string",
+      "description": "ID of the EBS volume to manage (vol-xxxxxxxx)",
+      "required": true
+    },
+    {
+      "name": "new_size",
+      "type": "number",
+      "description": "New size for the EBS volume in GB",
+      "required": true
+    },
+    {
+      "name": "volume_type",
+      "type": "string",
+      "description": "Type of the EBS volume",
+      "required": false,
+      "default": "gp3",
+      "options": ["gp2", "gp3", "io1", "io2", "sc1", "st1"]
+    },
+    {
+      "name": "iops",
+      "type": "number",
+      "description": "IOPS for the volume (only for io1, io2, gp3)",
+      "required": false,
+      "default": null
+    },
+    {
+      "name": "throughput",
+      "type": "number",
+      "description": "Throughput for gp3 volumes in MB/s",
+      "required": false,
+      "default": null
+    },
+    {
+      "name": "instance_id",
+      "type": "string",
+      "description": "ID of the EC2 instance attached to the volume (for file system expansion)",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "device_name",
+      "type": "string",
+      "description": "Device name of the volume on the instance",
+      "required": false,
+      "default": "/dev/xvda1",
+      "options": ["/dev/xvda1", "/dev/xvdf", "/dev/nvme0n1p1", "/dev/nvme1n1"]
+    },
+    {
+      "name": "file_system_type",
+      "type": "string",
+      "description": "File system type for expansion",
+      "required": false,
+      "default": "ext4",
+      "options": ["ext4", "xfs"]
+    },
+    {
+      "name": "expand_file_system",
+      "type": "boolean",
+      "description": "Whether to expand the file system after volume modification",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "ssh_key_path",
+      "type": "string",
+      "description": "Path to SSH private key for connecting to instance",
+      "required": false,
+      "default": ""
+    },
+    {
+      "name": "ssh_user",
+      "type": "string",
+      "description": "SSH user for connecting to instance",
+      "required": false,
+      "default": "ec2-user",
+      "options": ["ec2-user", "ubuntu", "admin", "root"]
+    },
+    {
+      "name": "ssh_port",
+      "type": "number",
+      "description": "SSH port for connecting to instance",
+      "required": false,
+      "default": 22
+    },
+    {
+      "name": "connection_timeout",
+      "type": "number",
+      "description": "Timeout for SSH connections in seconds",
+      "required": false,
+      "default": 300
+    },
+    {
+      "name": "wait_for_modification",
+      "type": "boolean",
+      "description": "Whether to wait for volume modification to complete",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "modification_timeout",
+      "type": "number",
+      "description": "Timeout for volume modification in minutes",
+      "required": false,
+      "default": 10
+    },
+    {
+      "name": "backup_before_modification",
+      "type": "boolean",
+      "description": "Create a snapshot before modifying the volume",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "snapshot_description",
+      "type": "string",
+      "description": "Description for the backup snapshot",
+      "required": false,
+      "default": "Backup before volume modification"
+    },
+    {
+      "name": "force_modification",
+      "type": "boolean",
+      "description": "Force volume modification even if it may cause data loss",
+      "required": false,
+      "default": false
+    }
+  ]
+}

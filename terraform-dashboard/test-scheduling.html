@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Instance Scheduling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .test-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #1565c0;
+        }
+        .schedule-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #1976d2;
+            margin: 10px 0;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📅 Instance Scheduling Test</h1>
+        <p>Testing EC2 instance scheduling functionality</p>
+        <button class="test-button" onclick="runAllTests()">🧪 Run All Tests</button>
+        <button class="test-button" onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🖥️ Available Instances</h2>
+        <button class="test-button" onclick="loadInstances()">Load Instances</button>
+        <div id="instancesResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📅 Schedule Management</h2>
+        <div class="form-group">
+            <label>Instance ID:</label>
+            <input type="text" id="instanceId" placeholder="i-xxxxxxxxxxxxxxxxx">
+        </div>
+        <button class="test-button" onclick="getSchedules()">Get Schedules</button>
+        <button class="test-button" onclick="showCreateScheduleForm()">Create Schedule</button>
+        
+        <div id="createScheduleForm" style="display: none; margin-top: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 4px;">
+            <h4>Create Scheduled Action</h4>
+            <div class="form-group">
+                <label>Action:</label>
+                <select id="scheduleAction">
+                    <option value="start">Start Instance</option>
+                    <option value="stop">Stop Instance</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Scheduled Time:</label>
+                <input type="datetime-local" id="scheduledTime">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="recurring"> Recurring (daily)
+                </label>
+            </div>
+            <button class="test-button" onclick="createSchedule()">Create Schedule</button>
+            <button class="test-button" onclick="hideCreateScheduleForm()">Cancel</button>
+        </div>
+        
+        <div id="scheduleResults"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://192.168.31.94:5000';
+        let currentInstanceId = null;
+
+        async function loadInstances() {
+            const resultsDiv = document.getElementById('instancesResults');
+            
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Loading instances...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances`);
+                const instances = await response.json();
+                
+                if (response.ok && Array.isArray(instances)) {
+                    if (instances.length > 0) {
+                        currentInstanceId = instances[0].id;
+                        document.getElementById('instanceId').value = currentInstanceId;
+                        
+                        resultsDiv.innerHTML = `
+                            <div class="test-result success">
+                                ✅ Found ${instances.length} instances
+                            </div>
+                        `;
+                        
+                        instances.forEach(instance => {
+                            resultsDiv.innerHTML += `
+                                <div class="schedule-card">
+                                    <strong>Instance:</strong> ${instance.name || instance.id}<br>
+                                    <strong>ID:</strong> ${instance.id}<br>
+                                    <strong>State:</strong> ${instance.state}<br>
+                                    <strong>Type:</strong> ${instance.type}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="test-result info">
+                                ℹ️ No instances found in AWS account.
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Failed to load instances: ${instances.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Error loading instances: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function getSchedules() {
+            const resultsDiv = document.getElementById('scheduleResults');
+            const instanceId = document.getElementById('instanceId').value;
+            
+            if (!instanceId) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please enter an instance ID
+                    </div>
+                `;
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Loading scheduled actions...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances/${instanceId}/schedule`);
+                const schedules = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Found ${schedules.length} scheduled actions for instance ${instanceId}
+                        </div>
+                    `;
+                    
+                    if (schedules.length > 0) {
+                        schedules.forEach(schedule => {
+                            resultsDiv.innerHTML += `
+                                <div class="schedule-card">
+                                    <strong>Action:</strong> ${schedule.action}<br>
+                                    <strong>Scheduled Time:</strong> ${new Date(schedule.scheduledTime).toLocaleString()}<br>
+                                    <strong>Recurring:</strong> ${schedule.recurring ? 'Yes' : 'No'}<br>
+                                    <strong>Enabled:</strong> ${schedule.enabled ? 'Yes' : 'No'}<br>
+                                    <strong>ID:</strong> ${schedule.id}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        resultsDiv.innerHTML += `
+                            <div class="test-result info">
+                                ℹ️ No scheduled actions found for this instance.
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Failed to get schedules: ${schedules.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Error getting schedules: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function showCreateScheduleForm() {
+            const instanceId = document.getElementById('instanceId').value;
+            if (!instanceId) {
+                alert('Please enter an instance ID first');
+                return;
+            }
+            
+            // Set default time to 1 hour from now
+            const defaultTime = new Date();
+            defaultTime.setHours(defaultTime.getHours() + 1);
+            document.getElementById('scheduledTime').value = defaultTime.toISOString().slice(0, 16);
+            
+            document.getElementById('createScheduleForm').style.display = 'block';
+        }
+
+        function hideCreateScheduleForm() {
+            document.getElementById('createScheduleForm').style.display = 'none';
+        }
+
+        async function createSchedule() {
+            const resultsDiv = document.getElementById('scheduleResults');
+            const instanceId = document.getElementById('instanceId').value;
+            const action = document.getElementById('scheduleAction').value;
+            const scheduledTime = document.getElementById('scheduledTime').value;
+            const recurring = document.getElementById('recurring').checked;
+            
+            if (!instanceId || !action || !scheduledTime) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Please fill in all required fields
+                    </div>
+                `;
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<div class="test-result info">🔄 Creating scheduled action...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/instances/${instanceId}/schedule`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                        scheduledTime: new Date(scheduledTime).toISOString(),
+                        recurring: recurring
+                    }),
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ Scheduled action created successfully!<br>
+                            Schedule ID: ${result.scheduleId}<br>
+                            Message: ${result.message}
+                        </div>
+                    `;
+                    
+                    hideCreateScheduleForm();
+                    
+                    // Refresh schedules
+                    setTimeout(getSchedules, 1000);
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ Failed to create schedule: ${result.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Error creating schedule: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            await loadInstances();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (currentInstanceId) {
+                await getSchedules();
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('instancesResults').innerHTML = '';
+            document.getElementById('scheduleResults').innerHTML = '';
+            hideCreateScheduleForm();
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>
