@@ -64,12 +64,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasAnyPermission } = useAuth();
+  const { hasAnyPermission, user, isAuthenticated } = useAuth();
+
+
 
   // Filter menu items based on user permissions
   const menuItems = allMenuItems.filter(item => {
-    if (item.permissions.length === 0) return true; // No permissions required
-    return hasAnyPermission(item.permissions);
+    if (!item.permissions || item.permissions.length === 0) return true; // No permissions required
+    return hasAnyPermission && hasAnyPermission(item.permissions);
   });
 
   const handleDrawerToggle = () => {

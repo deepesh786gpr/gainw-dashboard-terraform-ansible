@@ -33,9 +33,10 @@
     "yup": "^1.6.1"
   },
   "scripts": {
-    "start": "NODE_OPTIONS='--max-old-space-size=4096' react-scripts start",
-    "start:low-memory": "NODE_OPTIONS='--max-old-space-size=2048' GENERATE_SOURCEMAP=false react-scripts start",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' react-scripts build",
+    "start": "NODE_OPTIONS='--max-old-space-size=8192' GENERATE_SOURCEMAP=false TSC_COMPILE_ON_ERROR=true react-scripts start",
+    "start:low-memory": "NODE_OPTIONS='--max-old-space-size=2048' GENERATE_SOURCEMAP=false TSC_COMPILE_ON_ERROR=true SKIP_PREFLIGHT_CHECK=true react-scripts start",
+    "start:fast": "NODE_OPTIONS='--max-old-space-size=4096' GENERATE_SOURCEMAP=false TSC_COMPILE_ON_ERROR=true ESLINT_NO_DEV_ERRORS=true react-scripts start",
+    "build": "NODE_OPTIONS='--max-old-space-size=8192' react-scripts build",
     "build:low-memory": "NODE_OPTIONS='--max-old-space-size=2048' GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

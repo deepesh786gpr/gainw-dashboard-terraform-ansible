@@ -1,0 +1,140 @@
+{
+  "passed": 19,
+  "failed": 0,
+  "total": 19,
+  "details": [
+    {
+      "name": "Backend Health",
+      "success": true,
+      "message": "Server running: Test server is running",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:44.190Z"
+    },
+    {
+      "name": "Frontend Health",
+      "success": true,
+      "message": "Frontend accessible",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:44.200Z"
+    },
+    {
+      "name": "Ansible API Health",
+      "success": true,
+      "message": "Ansible API accessible",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.061Z"
+    },
+    {
+      "name": "Admin Login",
+      "success": true,
+      "message": "Admin authenticated: 21 permissions",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.066Z"
+    },
+    {
+      "name": "User Login",
+      "success": true,
+      "message": "User authenticated: 9 permissions",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.069Z"
+    },
+    {
+      "name": "Demo Login",
+      "success": true,
+      "message": "Demo authenticated: 5 permissions",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.072Z"
+    },
+    {
+      "name": "Invalid Login",
+      "success": true,
+      "message": "Invalid login properly rejected",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.076Z"
+    },
+    {
+      "name": "VPC Resources",
+      "success": true,
+      "message": "Retrieved 2 VPCs with detailed resources",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.581Z"
+    },
+    {
+      "name": "EC2 Instances",
+      "success": true,
+      "message": "Retrieved 2 instances",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.584Z"
+    },
+    {
+      "name": "Deployments",
+      "success": true,
+      "message": "Retrieved 1 deployments",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.586Z"
+    },
+    {
+      "name": "Templates",
+      "success": true,
+      "message": "Retrieved 1 templates",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.588Z"
+    },
+    {
+      "name": "Current User",
+      "success": true,
+      "message": "Retrieved user info: admin",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:45.590Z"
+    },
+    {
+      "name": "Admin VPC Access",
+      "success": true,
+      "message": "Admin can access VPC resources",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:46.094Z"
+    },
+    {
+      "name": "User VPC Access",
+      "success": true,
+      "message": "User can access VPC resources",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:46.599Z"
+    },
+    {
+      "name": "Demo VPC Access",
+      "success": true,
+      "message": "Demo can access VPC resources",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:47.103Z"
+    },
+    {
+      "name": "Ansible Playbooks",
+      "success": true,
+      "message": "Retrieved 0 playbooks",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:47.106Z"
+    },
+    {
+      "name": "Unauthorized Access",
+      "success": true,
+      "message": "Properly requires authentication",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:47.108Z"
+    },
+    {
+      "name": "Invalid Token",
+      "success": true,
+      "message": "Properly rejects invalid token",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:47.110Z"
+    },
+    {
+      "name": "Non-existent Endpoint",
+      "success": true,
+      "message": "Properly returns 404: 404",
+      "data": null,
+      "timestamp": "2025-07-16T05:33:47.114Z"
+    }
+  ]
+}
