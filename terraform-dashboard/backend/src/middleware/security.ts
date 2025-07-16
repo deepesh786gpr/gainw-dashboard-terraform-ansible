@@ -108,6 +108,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
     req.user = {
       id: decoded.userId,
       username: decoded.username,
+      email: decoded.email || '',
       role: decoded.role,
       permissions: decoded.permissions || [],
     };

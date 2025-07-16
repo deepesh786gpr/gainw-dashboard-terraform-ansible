@@ -22,6 +22,7 @@ import GitHubTokens from './pages/GitHubTokens';
 import Instances from './pages/Instances/Instances';
 import VPCResources from './pages/VPCResources/VPCResources';
 import AnsibleScripts from './pages/AnsibleScripts/AnsibleScripts';
+import AnsibleExecution from './pages/AnsibleExecution/AnsibleExecution';
 import Clusters from './pages/Clusters/Clusters';
 import Settings from './pages/Settings/Settings';
 import CostAnalysis from './pages/CostAnalysis/CostAnalysis';
@@ -122,6 +123,14 @@ const AppContent: React.FC = () => {
                 <ProtectedRoute requiredPermissions={['templates:read']}>
                   <Layout>
                     <ErrorBoundary><AnsibleScripts /></ErrorBoundary>
+                  </Layout>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/ansible-execution" element={
+                <ProtectedRoute requiredPermissions={['templates:read']}>
+                  <Layout>
+                    <ErrorBoundary><AnsibleExecution /></ErrorBoundary>
                   </Layout>
                 </ProtectedRoute>
               } />

@@ -38,17 +38,57 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+# Data source for default VPC if vpc_id is not provided
+data "aws_vpc" "default" {
+  count   = var.vpc_id == "" ? 1 : 0
+  default = true
+}
+
+# Data source for VPC information
+data "aws_vpc" "selected" {
+  count = var.vpc_id != "" ? 1 : 0
+  id    = var.vpc_id
+}
+
+# Data source for subnets in the VPC
+data "aws_subnets" "available" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
+  }
+
+  # Prefer public subnets for development
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
+  }
+}
+
 # Data source for subnet information
 data "aws_subnet" "selected" {
-  id = var.subnet_id
+  id = local.subnet_id
 }
 
 # Local values for computed configurations
 locals {
   ami_id = var.ami_id != "" ? var.ami_id : data.aws_ami.selected[0].id
-  
+
+  # Dynamic VPC and subnet selection
+  vpc_id = var.vpc_id != "" ? var.vpc_id : (
+    length(data.aws_vpc.default) > 0 ? data.aws_vpc.default[0].id : ""
+  )
+
+  subnet_id = var.subnet_id != "" ? var.subnet_id : (
+    length(data.aws_subnets.available.ids) > 0 ? data.aws_subnets.available.ids[0] : ""
+  )
+
   security_group_name = var.security_group_name != "" ? var.security_group_name : "${var.name}-sg"
-  
+
   # Combine provided security groups with created one
   all_security_group_ids = var.create_security_group ? concat([aws_security_group.instance[0].id], var.security_group_ids) : var.security_group_ids
   
@@ -78,7 +118,7 @@ resource "aws_security_group" "instance" {
   count       = var.create_security_group ? 1 : 0
   name        = local.security_group_name
   description = "Security group for ${var.name} EC2 instance"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
   
   # SSH access
   ingress {
@@ -128,7 +168,7 @@ resource "aws_instance" "main" {
   instance_type = var.instance_type
   key_name      = var.key_pair_name != "" ? var.key_pair_name : null
   
-  subnet_id                   = var.subnet_id
+  subnet_id                   = local.subnet_id
   vpc_security_group_ids      = local.all_security_group_ids
   associate_public_ip_address = var.associate_public_ip
   

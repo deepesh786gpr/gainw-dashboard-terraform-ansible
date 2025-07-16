@@ -1,0 +1,202 @@
+---
+# Ansible Playbook: Stop EC2 Instance
+# Description: Safely stops an EC2 instance with optional graceful shutdown
+# Usage: ansible-playbook ec2-stop.yml -e "instance_id=i-1234567890abcdef0"
+
+- name: Stop EC2 Instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Required variables
+    instance_id: "{{ instance_id | default('') }}"
+    region: "{{ aws_region | default('us-east-1') }}"
+    
+    # Optional parameters
+    wait_for_stop: "{{ wait_for_stop | default(true) }}"
+    stop_timeout: "{{ stop_timeout | default(300) }}"
+    force_stop: "{{ force_stop | default(false) }}"
+    graceful_shutdown: "{{ graceful_shutdown | default(true) }}"
+    shutdown_delay: "{{ shutdown_delay | default(30) }}"
+    
+  tasks:
+    - name: Validate required parameters
+      fail:
+        msg: "instance_id is required. Use -e 'instance_id=i-1234567890abcdef0'"
+      when: instance_id == ""
+
+    - name: Get current instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: instance_info
+
+    - name: Validate instance exists
+      fail:
+        msg: "Instance {{ instance_id }} not found in region {{ region }}"
+      when: instance_info.instances | length == 0
+
+    - name: Check if instance is already stopped
+      debug:
+        msg: "Instance {{ instance_id }} is already in {{ instance_info.instances[0].state.name }} state"
+      when: instance_info.instances[0].state.name in ["stopped", "stopping"]
+
+    - name: Skip stop if already stopped
+      meta: end_play
+      when: 
+        - instance_info.instances[0].state.name in ["stopped", "stopping"]
+        - not force_stop
+
+    - name: Display pre-stop instance information
+      debug:
+        msg:
+          - "Instance Information Before Stop:"
+          - "Instance ID: {{ instance_info.instances[0].instance_id }}"
+          - "Instance Type: {{ instance_info.instances[0].instance_type }}"
+          - "State: {{ instance_info.instances[0].state.name }}"
+          - "Private IP: {{ instance_info.instances[0].private_ip_address }}"
+          - "Public IP: {{ instance_info.instances[0].public_ip_address | default('N/A') }}"
+          - "Launch Time: {{ instance_info.instances[0].launch_time }}"
+
+    - name: Record stop timestamp
+      set_fact:
+        stop_started_at: "{{ ansible_date_time.iso8601 }}"
+
+    - name: Send graceful shutdown signal (if enabled)
+      block:
+        - name: Connect to instance and send shutdown signal
+          shell: |
+            # This would require SSH access to the instance
+            # For demonstration, we'll just add a delay
+            echo "Sending graceful shutdown signal to instance {{ instance_id }}"
+          delegate_to: localhost
+          when: graceful_shutdown
+
+        - name: Wait for graceful shutdown delay
+          pause:
+            seconds: "{{ shutdown_delay }}"
+          when: graceful_shutdown
+
+      rescue:
+        - name: Graceful shutdown failed, proceeding with force stop
+          debug:
+            msg: "Graceful shutdown failed or not possible, proceeding with normal stop"
+
+    - name: Stop EC2 instance
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ instance_id }}"
+        region: "{{ region }}"
+        state: stopped
+        wait: "{{ wait_for_stop }}"
+        wait_timeout: "{{ stop_timeout }}"
+        force: "{{ force_stop }}"
+      register: stop_result
+
+    - name: Wait for instance to be fully stopped
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: post_stop_info
+      until: post_stop_info.instances[0].state.name == "stopped"
+      retries: "{{ (stop_timeout | int / 10) | int }}"
+      delay: 10
+      when: wait_for_stop
+
+    - name: Get final instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: final_instance_info
+
+    - name: Calculate stop duration
+      set_fact:
+        stop_completed_at: "{{ ansible_date_time.iso8601 }}"
+        stop_duration: "{{ (ansible_date_time.epoch | int) - (stop_started_at | to_datetime('%Y-%m-%dT%H:%M:%SZ') | int) }}"
+
+    - name: Display stop results
+      debug:
+        msg:
+          - "Instance stop completed!"
+          - "Instance ID: {{ final_instance_info.instances[0].instance_id }}"
+          - "Current State: {{ final_instance_info.instances[0].state.name }}"
+          - "Stop Started: {{ stop_started_at }}"
+          - "Stop Completed: {{ stop_completed_at }}"
+          - "Duration: {{ stop_duration }} seconds"
+          - "Graceful Shutdown: {{ graceful_shutdown }}"
+          - "Force Stop: {{ force_stop }}"
+
+    - name: Calculate cost savings information
+      set_fact:
+        cost_info:
+          instance_type: "{{ final_instance_info.instances[0].instance_type }}"
+          stopped_at: "{{ stop_completed_at }}"
+          note: "Instance is now stopped and will not incur compute charges (storage charges may still apply)"
+
+    - name: Save stop log
+      copy:
+        content: |
+          EC2 Instance Stop Log
+          ====================
+          Instance ID: {{ instance_id }}
+          Region: {{ region }}
+          
+          Stop Timeline:
+          - Started: {{ stop_started_at }}
+          - Completed: {{ stop_completed_at }}
+          - Duration: {{ stop_duration }} seconds
+          
+          Pre-Stop Status:
+          - State: {{ instance_info.instances[0].state.name }}
+          - Instance Type: {{ instance_info.instances[0].instance_type }}
+          - Private IP: {{ instance_info.instances[0].private_ip_address }}
+          - Public IP: {{ instance_info.instances[0].public_ip_address | default('N/A') }}
+          - Launch Time: {{ instance_info.instances[0].launch_time }}
+          
+          Post-Stop Status:
+          - State: {{ final_instance_info.instances[0].state.name }}
+          - Stopped At: {{ stop_completed_at }}
+          
+          Configuration:
+          - Graceful shutdown: {{ graceful_shutdown }}
+          - Shutdown delay: {{ shutdown_delay }}s
+          - Force stop: {{ force_stop }}
+          - Wait for stop: {{ wait_for_stop }}
+          - Stop timeout: {{ stop_timeout }}s
+          
+          Cost Information:
+          - Instance Type: {{ final_instance_info.instances[0].instance_type }}
+          - Status: Instance stopped - compute charges stopped
+          - Note: EBS storage charges may still apply
+          
+          Next Steps:
+          - To start the instance: ansible-playbook ec2-start.yml -e "instance_id={{ instance_id }}"
+          - To terminate permanently: Use AWS console or CLI with caution
+        dest: "./{{ instance_id }}-stop-{{ ansible_date_time.epoch }}.log"
+      delegate_to: localhost
+
+    - name: Add stop tag to instance
+      amazon.aws.ec2_tag:
+        region: "{{ region }}"
+        resource: "{{ instance_id }}"
+        tags:
+          LastStopped: "{{ stop_completed_at }}"
+          StoppedBy: "terraform-dashboard-ansible"
+          StopDuration: "{{ stop_duration }}s"
+        state: present
+      ignore_errors: true
+
+    - name: Return stop information
+      set_fact:
+        stop_info:
+          instance_id: "{{ instance_id }}"
+          stop_started_at: "{{ stop_started_at }}"
+          stop_completed_at: "{{ stop_completed_at }}"
+          stop_duration_seconds: "{{ stop_duration }}"
+          final_state: "{{ final_instance_info.instances[0].state.name }}"
+          graceful_shutdown: "{{ graceful_shutdown }}"
+          force_stop: "{{ force_stop }}"
+          success: "{{ final_instance_info.instances[0].state.name == 'stopped' }}"
+          cost_savings: "Compute charges stopped for {{ final_instance_info.instances[0].instance_type }}"

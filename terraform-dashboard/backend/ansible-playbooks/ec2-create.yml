@@ -1,0 +1,149 @@
+---
+# Ansible Playbook: Create EC2 Instance
+# Description: Creates a new EC2 instance with specified configuration
+# Usage: ansible-playbook ec2-create.yml -e "instance_name=my-server instance_type=t3.micro"
+
+- name: Create EC2 Instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Default values - can be overridden with -e flag
+    instance_name: "{{ instance_name | default('terraform-dashboard-ec2') }}"
+    instance_type: "{{ instance_type | default('t3.micro') }}"
+    ami_id: "{{ ami_id | default('') }}"
+    key_name: "{{ key_name | default('') }}"
+    security_group: "{{ security_group | default('default') }}"
+    subnet_id: "{{ subnet_id | default('') }}"
+    region: "{{ aws_region | default('us-east-1') }}"
+    volume_size: "{{ volume_size | default(20) }}"
+    volume_type: "{{ volume_type | default('gp3') }}"
+    environment: "{{ environment | default('development') }}"
+    
+  tasks:
+    - name: Get latest Amazon Linux 2 AMI
+      amazon.aws.ec2_ami_info:
+        region: "{{ region }}"
+        owners:
+          - amazon
+        filters:
+          name: "amzn2-ami-hvm-*-x86_64-gp2"
+          state: available
+        most_recent: true
+      register: ami_info
+      when: ami_id == ""
+
+    - name: Set AMI ID from lookup
+      set_fact:
+        ami_id: "{{ ami_info.images[0].image_id }}"
+      when: ami_id == "" and ami_info.images | length > 0
+
+    - name: Get default VPC info
+      amazon.aws.ec2_vpc_info:
+        region: "{{ region }}"
+        filters:
+          "is-default": "true"
+      register: vpc_info
+      when: subnet_id == ""
+
+    - name: Get default subnet
+      amazon.aws.ec2_subnet_info:
+        region: "{{ region }}"
+        filters:
+          vpc-id: "{{ vpc_info.vpcs[0].vpc_id }}"
+          default-for-az: "true"
+      register: subnet_info
+      when: subnet_id == "" and vpc_info.vpcs | length > 0
+
+    - name: Set subnet ID
+      set_fact:
+        subnet_id: "{{ subnet_info.subnets[0].subnet_id }}"
+      when: subnet_id == "" and subnet_info.subnets | length > 0
+
+    - name: Create EC2 instance
+      amazon.aws.ec2_instance:
+        name: "{{ instance_name }}"
+        image_id: "{{ ami_id }}"
+        instance_type: "{{ instance_type }}"
+        key_name: "{{ key_name if key_name != '' else omit }}"
+        security_groups: "{{ [security_group] if security_group != '' else omit }}"
+        subnet_id: "{{ subnet_id if subnet_id != '' else omit }}"
+        region: "{{ region }}"
+        state: present
+        wait: true
+        wait_timeout: 600
+        volumes:
+          - device_name: /dev/xvda
+            ebs:
+              volume_size: "{{ volume_size }}"
+              volume_type: "{{ volume_type }}"
+              encrypted: true
+              delete_on_termination: true
+        tags:
+          Name: "{{ instance_name }}"
+          Environment: "{{ environment }}"
+          CreatedBy: "terraform-dashboard"
+          CreatedAt: "{{ ansible_date_time.iso8601 }}"
+          ManagedBy: "ansible"
+        user_data: |
+          #!/bin/bash
+          yum update -y
+          yum install -y htop curl wget
+          
+          # Install CloudWatch agent
+          wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+          rpm -U ./amazon-cloudwatch-agent.rpm
+          
+          # Create a simple status page
+          echo "<h1>{{ instance_name }}</h1>" > /var/www/html/index.html
+          echo "<p>Instance created at: $(date)</p>" >> /var/www/html/index.html
+          echo "<p>Instance ID: $(curl -s http://169.254.169.254/latest/meta-data/instance-id)</p>" >> /var/www/html/index.html
+      register: ec2_result
+
+    - name: Display instance information
+      debug:
+        msg:
+          - "Instance created successfully!"
+          - "Instance ID: {{ ec2_result.instances[0].instance_id }}"
+          - "Instance Name: {{ instance_name }}"
+          - "Instance Type: {{ instance_type }}"
+          - "AMI ID: {{ ami_id }}"
+          - "Private IP: {{ ec2_result.instances[0].private_ip_address }}"
+          - "Public IP: {{ ec2_result.instances[0].public_ip_address | default('N/A') }}"
+          - "State: {{ ec2_result.instances[0].state.name }}"
+          - "Region: {{ region }}"
+
+    - name: Save instance details to file
+      copy:
+        content: |
+          Instance Details:
+          =================
+          Instance ID: {{ ec2_result.instances[0].instance_id }}
+          Instance Name: {{ instance_name }}
+          Instance Type: {{ instance_type }}
+          AMI ID: {{ ami_id }}
+          Private IP: {{ ec2_result.instances[0].private_ip_address }}
+          Public IP: {{ ec2_result.instances[0].public_ip_address | default('N/A') }}
+          State: {{ ec2_result.instances[0].state.name }}
+          Region: {{ region }}
+          Created At: {{ ansible_date_time.iso8601 }}
+          
+          Tags:
+          - Name: {{ instance_name }}
+          - Environment: {{ environment }}
+          - CreatedBy: terraform-dashboard
+          - ManagedBy: ansible
+        dest: "./{{ instance_name }}-details.txt"
+      delegate_to: localhost
+
+    - name: Return instance information
+      set_fact:
+        instance_info:
+          instance_id: "{{ ec2_result.instances[0].instance_id }}"
+          instance_name: "{{ instance_name }}"
+          instance_type: "{{ instance_type }}"
+          ami_id: "{{ ami_id }}"
+          private_ip: "{{ ec2_result.instances[0].private_ip_address }}"
+          public_ip: "{{ ec2_result.instances[0].public_ip_address | default('N/A') }}"
+          state: "{{ ec2_result.instances[0].state.name }}"
+          region: "{{ region }}"
+          created_at: "{{ ansible_date_time.iso8601 }}"

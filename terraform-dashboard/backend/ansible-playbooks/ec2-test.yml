@@ -1,0 +1,301 @@
+---
+# Ansible Playbook: Test EC2 Instance
+# Description: Comprehensive testing of EC2 instance health, connectivity, and services
+# Usage: ansible-playbook ec2-test.yml -e "instance_id=i-1234567890abcdef0"
+
+- name: Test EC2 Instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Required variables
+    instance_id: "{{ instance_id | default('') }}"
+    region: "{{ aws_region | default('us-east-1') }}"
+    
+    # Optional test parameters
+    test_ssh: "{{ test_ssh | default(false) }}"
+    ssh_user: "{{ ssh_user | default('ec2-user') }}"
+    ssh_key_path: "{{ ssh_key_path | default('') }}"
+    test_http: "{{ test_http | default(false) }}"
+    http_port: "{{ http_port | default(80) }}"
+    test_https: "{{ test_https | default(false) }}"
+    https_port: "{{ https_port | default(443) }}"
+    custom_ports: "{{ custom_ports | default([]) }}"
+    ping_test: "{{ ping_test | default(true) }}"
+    
+  tasks:
+    - name: Validate required parameters
+      fail:
+        msg: "instance_id is required. Use -e 'instance_id=i-1234567890abcdef0'"
+      when: instance_id == ""
+
+    - name: Get instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: instance_info
+
+    - name: Validate instance exists
+      fail:
+        msg: "Instance {{ instance_id }} not found in region {{ region }}"
+      when: instance_info.instances | length == 0
+
+    - name: Initialize test results
+      set_fact:
+        test_started_at: "{{ ansible_date_time.iso8601 }}"
+        test_results: {}
+        instance_data: "{{ instance_info.instances[0] }}"
+
+    - name: Display instance information
+      debug:
+        msg:
+          - "Testing Instance: {{ instance_data.instance_id }}"
+          - "Instance Type: {{ instance_data.instance_type }}"
+          - "State: {{ instance_data.state.name }}"
+          - "Private IP: {{ instance_data.private_ip_address }}"
+          - "Public IP: {{ instance_data.public_ip_address | default('N/A') }}"
+          - "VPC ID: {{ instance_data.vpc_id }}"
+          - "Subnet ID: {{ instance_data.subnet_id }}"
+
+    # Test 1: Instance State Check
+    - name: Test 1 - Instance State Check
+      set_fact:
+        test_results: "{{ test_results | combine({'instance_state': {
+          'test': 'Instance State Check',
+          'status': 'PASS' if instance_data.state.name == 'running' else 'FAIL',
+          'result': instance_data.state.name,
+          'expected': 'running',
+          'message': 'Instance is ' + instance_data.state.name
+        }}) }}"
+
+    # Test 2: Network Connectivity (Ping)
+    - name: Test 2 - Ping Test
+      block:
+        - name: Ping instance public IP
+          shell: "ping -c 3 {{ instance_data.public_ip_address }}"
+          register: ping_result
+          ignore_errors: true
+          when: 
+            - ping_test
+            - instance_data.public_ip_address is defined
+            - instance_data.public_ip_address != ""
+
+        - name: Set ping test result
+          set_fact:
+            test_results: "{{ test_results | combine({'ping_test': {
+              'test': 'Ping Connectivity',
+              'status': 'PASS' if (ping_result.rc == 0) else 'FAIL',
+              'result': 'Ping successful' if (ping_result.rc == 0) else 'Ping failed',
+              'message': ping_result.stdout_lines[-1] if ping_result.rc == 0 else ping_result.stderr
+            }}) }}"
+          when: 
+            - ping_test
+            - instance_data.public_ip_address is defined
+            - ping_result is defined
+
+        - name: Set ping test skipped
+          set_fact:
+            test_results: "{{ test_results | combine({'ping_test': {
+              'test': 'Ping Connectivity',
+              'status': 'SKIP',
+              'result': 'No public IP available',
+              'message': 'Instance has no public IP address'
+            }}) }}"
+          when: 
+            - ping_test
+            - (instance_data.public_ip_address is not defined or instance_data.public_ip_address == "")
+
+    # Test 3: HTTP Connectivity
+    - name: Test 3 - HTTP Connectivity
+      block:
+        - name: Test HTTP connectivity
+          uri:
+            url: "http://{{ instance_data.public_ip_address }}:{{ http_port }}"
+            method: GET
+            timeout: 10
+          register: http_result
+          ignore_errors: true
+          when: 
+            - test_http
+            - instance_data.public_ip_address is defined
+            - instance_data.public_ip_address != ""
+
+        - name: Set HTTP test result
+          set_fact:
+            test_results: "{{ test_results | combine({'http_test': {
+              'test': 'HTTP Connectivity (Port ' + (http_port | string) + ')',
+              'status': 'PASS' if (http_result.status == 200) else 'FAIL',
+              'result': 'HTTP ' + (http_result.status | string) if http_result.status is defined else 'Connection failed',
+              'message': 'HTTP service responding on port ' + (http_port | string)
+            }}) }}"
+          when: 
+            - test_http
+            - http_result is defined
+
+    # Test 4: HTTPS Connectivity
+    - name: Test 4 - HTTPS Connectivity
+      block:
+        - name: Test HTTPS connectivity
+          uri:
+            url: "https://{{ instance_data.public_ip_address }}:{{ https_port }}"
+            method: GET
+            timeout: 10
+            validate_certs: false
+          register: https_result
+          ignore_errors: true
+          when: 
+            - test_https
+            - instance_data.public_ip_address is defined
+            - instance_data.public_ip_address != ""
+
+        - name: Set HTTPS test result
+          set_fact:
+            test_results: "{{ test_results | combine({'https_test': {
+              'test': 'HTTPS Connectivity (Port ' + (https_port | string) + ')',
+              'status': 'PASS' if (https_result.status == 200) else 'FAIL',
+              'result': 'HTTPS ' + (https_result.status | string) if https_result.status is defined else 'Connection failed',
+              'message': 'HTTPS service responding on port ' + (https_port | string)
+            }}) }}"
+          when: 
+            - test_https
+            - https_result is defined
+
+    # Test 5: Custom Port Tests
+    - name: Test 5 - Custom Port Connectivity
+      block:
+        - name: Test custom ports
+          wait_for:
+            host: "{{ instance_data.public_ip_address }}"
+            port: "{{ item }}"
+            timeout: 10
+          register: port_results
+          ignore_errors: true
+          loop: "{{ custom_ports }}"
+          when: 
+            - custom_ports | length > 0
+            - instance_data.public_ip_address is defined
+            - instance_data.public_ip_address != ""
+
+        - name: Set custom port test results
+          set_fact:
+            test_results: "{{ test_results | combine({'custom_ports_test': {
+              'test': 'Custom Ports Connectivity',
+              'status': 'PASS' if (port_results.results | selectattr('failed', 'equalto', false) | list | length == custom_ports | length) else 'PARTIAL' if (port_results.results | selectattr('failed', 'equalto', false) | list | length > 0) else 'FAIL',
+              'result': 'Tested ports: ' + (custom_ports | join(', ')),
+              'message': 'Open ports: ' + (port_results.results | selectattr('failed', 'equalto', false) | map(attribute='item') | list | join(', ')) + ' | Closed: ' + (port_results.results | selectattr('failed', 'equalto', true) | map(attribute='item') | list | join(', '))
+            }}) }}"
+          when: 
+            - custom_ports | length > 0
+            - port_results is defined
+
+    # Test 6: Security Group Analysis
+    - name: Test 6 - Security Group Analysis
+      set_fact:
+        security_groups: "{{ instance_data.security_groups | map(attribute='group_name') | list }}"
+        test_results: "{{ test_results | combine({'security_groups': {
+          'test': 'Security Groups',
+          'status': 'INFO',
+          'result': 'Security groups: ' + (instance_data.security_groups | map(attribute='group_name') | list | join(', ')),
+          'message': 'Instance has ' + (instance_data.security_groups | length | string) + ' security group(s) attached'
+        }}) }}"
+
+    # Test 7: Instance Metadata
+    - name: Test 7 - Instance Metadata Check
+      set_fact:
+        test_results: "{{ test_results | combine({'instance_metadata': {
+          'test': 'Instance Metadata',
+          'status': 'INFO',
+          'result': 'Instance Type: ' + instance_data.instance_type + ', AMI: ' + instance_data.image_id,
+          'message': 'Launched: ' + instance_data.launch_time + ', Platform: ' + (instance_data.platform | default('Linux'))
+        }}) }}"
+
+    # Calculate test summary
+    - name: Calculate test summary
+      set_fact:
+        test_completed_at: "{{ ansible_date_time.iso8601 }}"
+        total_tests: "{{ test_results | length }}"
+        passed_tests: "{{ test_results | dict2items | selectattr('value.status', 'equalto', 'PASS') | list | length }}"
+        failed_tests: "{{ test_results | dict2items | selectattr('value.status', 'equalto', 'FAIL') | list | length }}"
+        skipped_tests: "{{ test_results | dict2items | selectattr('value.status', 'equalto', 'SKIP') | list | length }}"
+
+    - name: Display test results summary
+      debug:
+        msg:
+          - "=== EC2 Instance Test Results ==="
+          - "Instance ID: {{ instance_id }}"
+          - "Test Duration: {{ (ansible_date_time.epoch | int) - (test_started_at | to_datetime('%Y-%m-%dT%H:%M:%SZ') | int) }} seconds"
+          - "Total Tests: {{ total_tests }}"
+          - "Passed: {{ passed_tests }}"
+          - "Failed: {{ failed_tests }}"
+          - "Skipped: {{ skipped_tests }}"
+          - "Overall Status: {{ 'HEALTHY' if failed_tests == '0' else 'ISSUES DETECTED' }}"
+
+    - name: Display detailed test results
+      debug:
+        msg:
+          - "{{ item.value.test }}: {{ item.value.status }}"
+          - "  Result: {{ item.value.result }}"
+          - "  Message: {{ item.value.message }}"
+      loop: "{{ test_results | dict2items }}"
+
+    - name: Save test report
+      copy:
+        content: |
+          EC2 Instance Test Report
+          =======================
+          Generated: {{ test_completed_at }}
+          Instance ID: {{ instance_id }}
+          Region: {{ region }}
+          
+          Instance Information:
+          - Instance Type: {{ instance_data.instance_type }}
+          - State: {{ instance_data.state.name }}
+          - AMI ID: {{ instance_data.image_id }}
+          - Private IP: {{ instance_data.private_ip_address }}
+          - Public IP: {{ instance_data.public_ip_address | default('N/A') }}
+          - VPC ID: {{ instance_data.vpc_id }}
+          - Subnet ID: {{ instance_data.subnet_id }}
+          - Launch Time: {{ instance_data.launch_time }}
+          - Security Groups: {{ security_groups | join(', ') }}
+          
+          Test Summary:
+          - Total Tests: {{ total_tests }}
+          - Passed: {{ passed_tests }}
+          - Failed: {{ failed_tests }}
+          - Skipped: {{ skipped_tests }}
+          - Overall Status: {{ 'HEALTHY' if failed_tests == '0' else 'ISSUES DETECTED' }}
+          
+          Detailed Results:
+          {% for test_name, test_data in test_results.items() %}
+          {{ loop.index }}. {{ test_data.test }}
+             Status: {{ test_data.status }}
+             Result: {{ test_data.result }}
+             Message: {{ test_data.message }}
+          
+          {% endfor %}
+          
+          Recommendations:
+          {% if failed_tests != '0' %}
+          - Review failed tests and check security group rules
+          - Verify instance is fully booted and services are running
+          - Check network connectivity and routing
+          {% else %}
+          - Instance appears to be healthy and functioning properly
+          - Consider implementing monitoring for ongoing health checks
+          {% endif %}
+        dest: "./{{ instance_id }}-test-report-{{ ansible_date_time.epoch }}.txt"
+      delegate_to: localhost
+
+    - name: Return test results
+      set_fact:
+        final_test_results:
+          instance_id: "{{ instance_id }}"
+          test_started_at: "{{ test_started_at }}"
+          test_completed_at: "{{ test_completed_at }}"
+          total_tests: "{{ total_tests }}"
+          passed_tests: "{{ passed_tests }}"
+          failed_tests: "{{ failed_tests }}"
+          skipped_tests: "{{ skipped_tests }}"
+          overall_status: "{{ 'HEALTHY' if failed_tests == '0' else 'ISSUES_DETECTED' }}"
+          detailed_results: "{{ test_results }}"
+          instance_info: "{{ instance_data }}"

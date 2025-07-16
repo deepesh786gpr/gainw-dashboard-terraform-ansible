@@ -1648,7 +1648,7 @@ app.get('/api/github/user/repos', async (req, res) => {
       });
     }
 
-    const repositories: any[] = await githubResponse.json();
+    const repositories = await githubResponse.json() as any[];
 
     console.log(`✅ Found ${repositories.length} user repositories`);
 
@@ -1711,7 +1711,7 @@ app.get('/api/github/orgs/:org/repos', async (req, res) => {
       });
     }
 
-    const repositories: any[] = await githubResponse.json();
+    const repositories = await githubResponse.json() as any[];
 
     console.log(`✅ Found ${repositories.length} repositories for organization ${org}`);
 

@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  terraform-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: terraform-dashboard
+    ports:
+      - "3000:3000"  # Frontend
+      - "5000:5000"  # Backend API
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - FRONTEND_URL=http://localhost:3000
+      - DATABASE_PATH=/app/data/terraform-dashboard.db
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_DEFAULT_REGION=${AWS_REGION:-us-east-1}
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+      - TERRAFORM_PATH=/usr/local/bin/terraform
+      - TERRAGRUNT_PATH=/usr/local/bin/terragrunt
+      - TERRAFORM_WORKING_DIR=/app/terraform-workspace
+    volumes:
+      # Persist database
+      - terraform_data:/app/backend/data
+      # Persist logs
+      - terraform_logs:/app/backend/logs
+      # Persist terraform workspace
+      - terraform_workspace:/app/backend/terraform-workspace
+      # Mount AWS credentials (optional)
+      - ~/.aws:/root/.aws:ro
+      # Mount SSH keys for Git operations (optional)
+      - ~/.ssh:/root/.ssh:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - terraform-network
+
+  # Optional: Add a reverse proxy (nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: terraform-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # Optional SSL certificates
+    depends_on:
+      - terraform-dashboard
+    restart: unless-stopped
+    networks:
+      - terraform-network
+    profiles:
+      - nginx  # Only start with --profile nginx
+
+volumes:
+  terraform_data:
+    driver: local
+  terraform_logs:
+    driver: local
+  terraform_workspace:
+    driver: local
+
+networks:
+  terraform-network:
+    driver: bridge

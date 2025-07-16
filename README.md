@@ -1,248 +1,289 @@
-# AWS EC2 Management with Terraform and Terragrunt
+# 🚀 Terraform Dashboard
 
-A comprehensive, production-ready AWS EC2 management solution using Terraform modules and Terragrunt for environment management. This project provides a complete infrastructure-as-code framework for deploying, managing, and operating EC2 instances with advanced features like automated volume management, instance operations, and comprehensive monitoring.
+A comprehensive web-based dashboard for managing Terraform infrastructure, AWS resources, and Ansible automation with GitHub integration.
 
-## 🚀 Quick Start
-
-```bash
-# 1. Validate your setup
-./scripts/validate-setup.sh
-
-# 2. Update configuration files with your AWS details
-# Edit environments/dev/ec2-instance/terragrunt.hcl
-
-# 3. Deploy your first instance
-cd environments/dev/ec2-instance
-terragrunt plan && terragrunt apply
-
-# 4. Run integration tests
-cd ../../.. && ./scripts/test-deployment.sh
-```
-
-**👉 [Complete Getting Started Guide](GETTING_STARTED.md)**
-
-## 📁 Project Structure
-
-```
-.
-├── modules/                    # 🧩 Reusable Terraform modules
-│   ├── ec2-instance/          #   └── Core EC2 instance deployment
-│   ├── ebs-volume/            #   └── EBS volume management & expansion
-│   └── ec2-operations/        #   └── Instance operations & health checks
-├── environments/              # 🌍 Environment-specific configurations
-│   ├── dev/                   #   └── Development environment
-│   ├── staging/               #   └── Staging environment (template)
-│   └── prod/                  #   └── Production environment
-├── common/                    # 🔧 Shared configurations and variables
-├── examples/                  # 📚 Usage examples and templates
-│   └── basic-web-server/      #   └── Complete web server example
-├── docs/                      # 📖 Comprehensive documentation
-├── scripts/                   # 🛠️ Validation and testing scripts
-└── terragrunt.hcl            # 🏗️ Root Terragrunt configuration
-```
+![Terraform Dashboard](https://img.shields.io/badge/Terraform-Dashboard-blue?style=for-the-badge&logo=terraform)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green?style=for-the-badge&logo=node.js)
+![React](https://img.shields.io/badge/React-18+-blue?style=for-the-badge&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5+-blue?style=for-the-badge&logo=typescript)
+![AWS](https://img.shields.io/badge/AWS-Integration-orange?style=for-the-badge&logo=amazon-aws)
 
 ## ✨ Features
 
-### 🚀 **EC2 Instance Deployment**
-- **Smart AMI Selection**: Automatic latest AMI detection with fallback options
-- **Flexible Networking**: VPC, subnet, and security group management
-- **Custom User Data**: Automated instance initialization scripts
-- **Multiple Storage Options**: Root and additional EBS volumes with encryption
-- **Comprehensive Tagging**: Automated and custom tagging strategies
+### 🏗️ Infrastructure Management
+- **Terraform Integration**: Deploy and manage Terraform configurations
+- **Terragrunt Support**: Advanced Terraform workflow management
+- **AWS Resource Management**: EC2, RDS, Lambda, EKS, S3, VPC resources
+- **Real-time Monitoring**: Live status updates and resource tracking
 
-### 💾 **EBS Volume Management**
-- **Dynamic Resizing**: Increase volume sizes with validation and safety checks
-- **Automated File System Expansion**: Support for ext4 and XFS file systems
-- **Backup Integration**: Pre-modification snapshots with retention policies
-- **Performance Tuning**: IOPS and throughput optimization for gp3 volumes
-- **Retry Mechanisms**: Robust error handling and retry logic
+### 🤖 Automation & Orchestration
+- **Ansible Integration**: Execute playbooks for AWS services
+- **GitHub Integration**: Import and manage infrastructure code
+- **Template Management**: Reusable infrastructure templates
+- **Deployment Pipelines**: Automated deployment workflows
 
-### 🔄 **Instance Management Operations**
-- **Lifecycle Management**: Start, stop, restart, and terminate operations
-- **Health Monitoring**: HTTP and SSH connectivity checks
-- **Status Reporting**: Comprehensive instance and system status monitoring
-- **Notification Integration**: SNS and Slack notifications for operations
-- **Maintenance Windows**: Scheduled operations with safety validations
+### 📊 Dashboard & Analytics
+- **Resource Dashboard**: Comprehensive view of AWS resources
+- **VPC Resources**: Hierarchical view of VPCs and associated resources
+- **Cost Analysis**: Infrastructure cost tracking and optimization
+- **Security Center**: Security compliance and monitoring
 
-### 🏗️ **Infrastructure as Code**
-- **DRY Configuration**: Terragrunt for environment-specific configurations
-- **Modular Design**: Reusable modules with comprehensive input validation
-- **Environment Isolation**: Separate state management for dev/staging/prod
-- **Version Control**: Git-friendly configuration with proper .gitignore
-- **CI/CD Ready**: Hooks and validation for automated deployments
+### 🔐 Security & Authentication
+- **User Authentication**: JWT-based secure authentication
+- **Role-based Access**: Multiple user roles and permissions
+- **GitHub OAuth**: Seamless GitHub integration
+- **Token Management**: Secure API token handling
 
-## 📚 Documentation
+## 🏗️ Architecture
 
-| Document | Description |
-|----------|-------------|
-| **[Getting Started](GETTING_STARTED.md)** | Complete setup and deployment guide |
-| **[Usage Guide](docs/usage-guide.md)** | Detailed usage instructions and examples |
-| **[Module Documentation](docs/modules.md)** | Comprehensive module reference |
-| **[Troubleshooting](docs/troubleshooting.md)** | Common issues and solutions |
-| **[Examples](examples/README.md)** | Practical usage examples |
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend API   │    │  Ansible API    │
+│   (React)       │◄──►│   (Node.js)     │◄──►│   (Node.js)     │
+│   Port: 3000    │    │   Port: 5000    │    │   Port: 5001    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       ▼                       ▼
+         │              ┌─────────────────┐    ┌─────────────────┐
+         │              │   PostgreSQL    │    │  Ansible        │
+         │              │   Database      │    │  Playbooks      │
+         │              └─────────────────┘    └─────────────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐
+│     Nginx       │    │     Redis       │
+│  Reverse Proxy  │    │     Cache       │
+└─────────────────┘    └─────────────────┘
+```
 
-## 🧩 Module Overview
+## 🚀 Quick Start
 
-### **EC2 Instance Module** (`modules/ec2-instance/`)
-Complete EC2 instance deployment with security groups, storage, and networking.
+### Prerequisites
+- Node.js 18+ 
+- PostgreSQL 12+
+- Redis 6+
+- Python 3.8+ (for Ansible)
+- AWS CLI configured
+- Git
 
-**Key Features:**
-- Automated AMI selection with data sources
-- Configurable security groups with custom rules
-- Multiple EBS volume support with encryption
-- User data script execution and validation
-- Comprehensive output values for integration
-
-### **EBS Volume Module** (`modules/ebs-volume/`)
-Advanced EBS volume management with automated file system expansion.
-
-**Key Features:**
-- Volume size increase with safety validations
-- Automated file system expansion (ext4/xfs)
-- Pre-modification backup creation
-- SSH-based remote execution with retry logic
-- Performance optimization for gp3 volumes
-
-### **EC2 Operations Module** (`modules/ec2-operations/`)
-Instance lifecycle management with monitoring and notifications.
-
-**Key Features:**
-- Multiple operations (start, stop, restart, status)
-- HTTP and SSH health checks
-- CloudWatch logging integration
-- SNS and Slack notification support
-- Maintenance window enforcement
-
-## 🌍 Environment Management
-
-| Environment | Purpose | Configuration |
-|-------------|---------|---------------|
-| **Development** | Testing and development | Smaller instances, relaxed security, no backups |
-| **Staging** | Pre-production testing | Production-like setup with cost optimizations |
-| **Production** | Live workloads | Enhanced security, monitoring, and backup policies |
-
-Each environment includes:
-- ✅ Isolated Terraform state management
-- ✅ Environment-specific variable configurations
-- ✅ Customized security and compliance settings
-- ✅ Appropriate resource sizing and cost controls
-
-## 🛠️ Validation and Testing
-
-### **Automated Validation**
+### Option 1: Automated Deployment (Recommended)
 ```bash
-# Comprehensive setup validation
-./scripts/validate-setup.sh
-
-# Integration testing
-./scripts/test-deployment.sh
+# Download and run deployment script
+curl -fsSL https://raw.githubusercontent.com/yourusername/terraform-dashboard/main/deploy-terraform-dashboard.sh -o deploy.sh
+chmod +x deploy.sh
+sudo ./deploy.sh --domain your-domain.com
 ```
 
-### **Manual Testing**
+### Option 2: Docker Compose
 ```bash
-# Test individual modules
-cd modules/ec2-instance && terraform validate
-cd modules/ebs-volume && terraform validate
-cd modules/ec2-operations && terraform validate
+# Clone repository
+git clone https://github.com/yourusername/terraform-dashboard.git
+cd terraform-dashboard
 
-# Test environment configurations
-cd environments/dev && terragrunt validate-inputs
-cd environments/prod && terragrunt validate-inputs
+# Configure environment
+cp .env.example .env
+# Edit .env with your settings
+
+# Start services
+docker-compose up -d
 ```
 
-## 🔧 Configuration Examples
+### Option 3: Local Development
+```bash
+# Clone repository
+git clone https://github.com/yourusername/terraform-dashboard.git
+cd terraform-dashboard
 
-### **Basic Web Server**
-```hcl
-# Deploy a simple web server
-module "web_server" {
-  source = "./modules/ec2-instance"
+# Backend setup
+cd backend
+npm install
+npm run build
+npm start
 
-  name = "web-server-01"
-  instance_type = "t3.small"
-  vpc_id = "vpc-12345678"
-  subnet_id = "subnet-12345678"
+# Frontend setup (new terminal)
+cd frontend
+npm install
+npm start
 
-  additional_ports = [{
-    port = 80
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTP access"
-  }]
-
-  user_data = base64encode(file("scripts/web-server-setup.sh"))
-}
+# Ansible API setup (new terminal)
+cd backend
+node ansible-api-server.js
 ```
 
-### **Volume Management**
-```hcl
-# Increase EBS volume size
-module "volume_resize" {
-  source = "./modules/ebs-volume"
+## 📋 Project Structure
 
-  volume_id = "vol-12345678"
-  new_size = 100
-  instance_id = "i-12345678"
-  expand_file_system = true
-  backup_before_modification = true
-}
+```
+terraform-dashboard/
+├── frontend/                 # React frontend application
+│   ├── src/
+│   │   ├── components/      # Reusable UI components
+│   │   ├── pages/          # Page components
+│   │   ├── contexts/       # React contexts
+│   │   └── utils/          # Utility functions
+│   ├── public/             # Static assets
+│   └── package.json
+├── backend/                 # Node.js backend API
+│   ├── src/
+│   │   ├── routes/         # API routes
+│   │   ├── services/       # Business logic
+│   │   ├── middleware/     # Express middleware
+│   │   └── database/       # Database configuration
+│   ├── ansible-api-server.js # Ansible API server
+│   └── package.json
+├── ansible-aws-playbooks/   # Ansible playbooks
+│   ├── ec2/               # EC2 management playbooks
+│   ├── rds/               # RDS management playbooks
+│   ├── lambda/            # Lambda management playbooks
+│   └── eks/               # EKS management playbooks
+├── deploy-terraform-dashboard.sh # Deployment script
+├── docker-compose.yml      # Docker composition
+└── DEPLOYMENT.md          # Deployment guide
 ```
 
-### **Instance Operations**
-```hcl
-# Restart instance with health checks
-module "restart_operation" {
-  source = "./modules/ec2-operations"
+## 🔧 Configuration
 
-  instance_id = "i-12345678"
-  operation = "restart"
-  health_check_enabled = true
-  notification_enabled = true
-}
+### Environment Variables
+
+#### Backend (.env)
+```bash
+# Database
+DATABASE_URL=postgresql://dashboard_user:password@localhost:5432/terraform_dashboard
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=your_jwt_secret_change_me
+JWT_REFRESH_SECRET=your_jwt_refresh_secret_change_me
+
+# AWS
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+
+# Ansible
+ANSIBLE_PLAYBOOKS_DIR=/path/to/ansible-aws-playbooks
+
+# GitHub (Optional)
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
 ```
+
+#### Frontend (.env)
+```bash
+REACT_APP_API_URL=http://localhost:5000
+REACT_APP_ENVIRONMENT=development
+```
+
+## 🐳 Docker Deployment
+
+### Services
+- **Frontend**: Nginx serving React app (Port 80/443)
+- **Backend**: Node.js API server (Port 5000)
+- **Ansible API**: Ansible execution server (Port 5001)
+- **PostgreSQL**: Database (Port 5432)
+- **Redis**: Cache and sessions (Port 6379)
+
+### Commands
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Rebuild and restart
+docker-compose build && docker-compose up -d
+```
+
+## 📊 API Endpoints
+
+### Authentication
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/refresh` - Refresh token
+- `POST /api/auth/logout` - User logout
+
+### Infrastructure
+- `GET /api/instances` - List EC2 instances
+- `POST /api/instances/:id/start` - Start instance
+- `POST /api/instances/:id/stop` - Stop instance
+- `GET /api/vpc-resources` - List VPC resources
+- `GET /api/deployments` - List deployments
+
+### Ansible
+- `GET /ansible-api/playbooks` - List available playbooks
+- `POST /ansible-api/execute` - Execute playbook
+- `GET /ansible-api/status/:id` - Get execution status
+
+### GitHub
+- `GET /api/github/repos` - List repositories
+- `POST /api/github/import` - Import repository
+- `GET /api/github/tokens` - List GitHub tokens
+
+## 🔒 Security
+
+### Best Practices
+1. **Environment Variables**: Never commit secrets to version control
+2. **JWT Secrets**: Use strong, unique secrets for production
+3. **Database Security**: Use strong passwords and restrict access
+4. **HTTPS**: Always use SSL/TLS in production
+5. **Firewall**: Configure proper firewall rules
+6. **Updates**: Keep dependencies updated
+
+## 📊 Monitoring
+
+### Health Checks
+- Frontend: `GET /health`
+- Backend: `GET /api/health`
+- Ansible API: `GET /health`
+
+### Logging
+- Application logs: `/var/log/terraform-dashboard/`
+- Nginx logs: `/var/log/nginx/`
+- System logs: `journalctl -u terraform-dashboard-*`
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our contributing guidelines:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-1. **Fork the repository** and create a feature branch
-2. **Follow Terraform best practices** and module conventions
-3. **Add comprehensive tests** for new functionality
-4. **Update documentation** for any changes
-5. **Test in development environment** before submitting PR
-
-### **Development Workflow**
-```bash
-# 1. Validate changes
-./scripts/validate-setup.sh
-
-# 2. Run tests
-./scripts/test-deployment.sh
-
-# 3. Test in development
-cd environments/dev && terragrunt plan
-
-# 4. Submit PR with detailed description
-```
-
-## 📞 Support
-
-### **Getting Help**
-- 📖 **Documentation**: Check the comprehensive docs in `/docs`
-- 🐛 **Issues**: Create GitHub issues for bugs or feature requests
-- 💬 **Discussions**: Use GitHub Discussions for questions
-- 🔍 **Troubleshooting**: See [troubleshooting guide](docs/troubleshooting.md)
-
-### **Common Issues**
-- **AWS Permissions**: Ensure proper IAM permissions are configured
-- **Resource Limits**: Check AWS service quotas and limits
-- **Network Configuration**: Verify VPC, subnet, and security group settings
-- **State Management**: Ensure S3 bucket and DynamoDB table are properly configured
-
-## 📄 License
+## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🏷️ Tags
+## 🆘 Support
 
-`terraform` `terragrunt` `aws` `ec2` `infrastructure-as-code` `devops` `automation` `cloud` `ebs` `volume-management`
+### Documentation
+- [Deployment Guide](DEPLOYMENT.md)
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+
+### Getting Help
+1. Check the documentation
+2. Search existing issues
+3. Create a new issue with detailed information
+
+## 🎯 Roadmap
+
+### Current Version (v1.0)
+- ✅ Basic Terraform integration
+- ✅ AWS resource management
+- ✅ Ansible automation
+- ✅ GitHub integration
+- ✅ User authentication
+
+### Upcoming Features (v1.1)
+- [ ] Multi-cloud support (Azure, GCP)
+- [ ] Advanced monitoring and alerting
+- [ ] Infrastructure as Code templates
+- [ ] Team collaboration features
+
+---
+
+**Made with ❤️ by the Terraform Dashboard Team**

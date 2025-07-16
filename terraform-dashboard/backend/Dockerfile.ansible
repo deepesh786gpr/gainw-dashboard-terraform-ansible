@@ -1,0 +1,56 @@
+# Ansible API Dockerfile for Terraform Dashboard
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    curl \
+    bash \
+    git \
+    openssh-client \
+    make \
+    g++
+
+# Install Ansible and AWS dependencies
+RUN pip3 install --no-cache-dir \
+    ansible \
+    boto3 \
+    botocore \
+    requests \
+    ansible-runner
+
+# Copy package files
+COPY package*.json ./
+
+# Install Node.js dependencies (only production)
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy only the Ansible API server file
+COPY ansible-api-server.js ./
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Change ownership of app directory
+RUN chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
+
+# Expose port
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5001/health || exit 1
+
+# Start the Ansible API server
+CMD ["node", "ansible-api-server.js"]

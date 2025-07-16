@@ -46,8 +46,8 @@ export class PerformanceService {
   private metrics: PerformanceMetric[] = [];
   private apiMetrics: APIMetrics[] = [];
   private maxMetrics = 1000;
-  private observer: PerformanceObserver;
-  private systemMetricsInterval: NodeJS.Timeout;
+  private observer!: PerformanceObserver;
+  private systemMetricsInterval!: NodeJS.Timeout;
 
   constructor() {
     this.setupPerformanceObserver();
@@ -73,7 +73,7 @@ export class PerformanceService {
       });
     });
 
-    this.observer.observe({ entryTypes: ['measure', 'navigation', 'resource'] });
+    this.observer.observe({ entryTypes: ['measure', 'resource'] });
   }
 
   private startSystemMetricsCollection() {

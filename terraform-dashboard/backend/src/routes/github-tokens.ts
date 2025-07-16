@@ -50,7 +50,7 @@ async function validateGitHubToken(token: string): Promise<{ valid: boolean; use
 
     return { valid: true, user, scopes };
   } catch (error) {
-    return { valid: false, error: `Network error: ${error.message}` };
+    return { valid: false, error: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 

@@ -326,12 +326,9 @@ async function executeDeployment(deploymentId: string, template: any, variables:
     // Generate Terraform files
     const terraformCode = generateTerraformCode(template.terraform_code, variables);
 
-    // Generate variable declarations from template variables
-    const variableDeclarations = generateVariableDeclarations(template.variables || []);
-
-    // Combine variable declarations with main terraform code
-    const fullTerraformCode = variableDeclarations + '\n\n' + terraformCode;
-    await fs.writeFile(path.join(workspaceDir, 'main.tf'), fullTerraformCode);
+    // The generateTerraformCode function now handles deduplication internally
+    // So we don't need to add separate variable declarations
+    await fs.writeFile(path.join(workspaceDir, 'main.tf'), terraformCode);
 
     // Generate variables file
     const variablesContent = generateVariablesFile(variables);
@@ -414,9 +411,120 @@ function generateVariableDeclarations(templateVariables: any[]): string {
   return variableDeclarations;
 }
 
+// Deduplicate Terraform declarations
+function deduplicateTerraformCode(code: string): string {
+  const lines = code.split('\n');
+  const seenVariables = new Set<string>();
+  const seenDataSources = new Set<string>();
+  const seenOutputs = new Set<string>();
+  const seenResources = new Set<string>();
+  const filteredLines: string[] = [];
+
+  let currentBlock = '';
+  let currentBlockName = '';
+  let blockStartIndex = -1;
+  let braceCount = 0;
+  let inBlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    // Skip empty lines and comments outside blocks
+    if (!inBlock && (trimmedLine === '' || trimmedLine.startsWith('#'))) {
+      filteredLines.push(line);
+      continue;
+    }
+
+    // Detect start of blocks
+    if (!inBlock && (
+      trimmedLine.startsWith('variable ') ||
+      trimmedLine.startsWith('data ') ||
+      trimmedLine.startsWith('output ') ||
+      trimmedLine.startsWith('resource ')
+    )) {
+      inBlock = true;
+      blockStartIndex = i;
+      braceCount = 0;
+
+      // Extract block type and name
+      const match = trimmedLine.match(/^(variable|data|output|resource)\s+"?([^"\s{]+)"?(?:\s+"([^"]+)")?/);
+      if (match) {
+        const blockType = match[1];
+        const blockName = match[2];
+        const resourceType = match[3];
+
+        if (blockType === 'variable') {
+          currentBlockName = `variable.${blockName}`;
+        } else if (blockType === 'data') {
+          currentBlockName = `data.${blockName}.${resourceType || 'default'}`;
+        } else if (blockType === 'output') {
+          currentBlockName = `output.${blockName}`;
+        } else if (blockType === 'resource') {
+          currentBlockName = `resource.${blockName}.${resourceType || 'default'}`;
+        }
+      }
+
+      currentBlock = line + '\n';
+    } else if (inBlock) {
+      currentBlock += line + '\n';
+    } else {
+      // Line outside any block
+      filteredLines.push(line);
+      continue;
+    }
+
+    // Count braces to detect end of block
+    if (inBlock) {
+      for (const char of line) {
+        if (char === '{') braceCount++;
+        if (char === '}') braceCount--;
+      }
+
+      // End of block detected
+      if (braceCount === 0 && trimmedLine.includes('}')) {
+        inBlock = false;
+
+        // Check if we've seen this block before
+        const blockType = currentBlockName.split('.')[0];
+        let isDuplicate = false;
+
+        if (blockType === 'variable' && seenVariables.has(currentBlockName)) {
+          isDuplicate = true;
+        } else if (blockType === 'data' && seenDataSources.has(currentBlockName)) {
+          isDuplicate = true;
+        } else if (blockType === 'output' && seenOutputs.has(currentBlockName)) {
+          isDuplicate = true;
+        } else if (blockType === 'resource' && seenResources.has(currentBlockName)) {
+          isDuplicate = true;
+        }
+
+        if (!isDuplicate) {
+          // Add to seen sets
+          if (blockType === 'variable') seenVariables.add(currentBlockName);
+          else if (blockType === 'data') seenDataSources.add(currentBlockName);
+          else if (blockType === 'output') seenOutputs.add(currentBlockName);
+          else if (blockType === 'resource') seenResources.add(currentBlockName);
+
+          // Add the block to filtered lines
+          filteredLines.push(...currentBlock.split('\n').slice(0, -1));
+        }
+
+        // Reset for next block
+        currentBlock = '';
+        currentBlockName = '';
+        blockStartIndex = -1;
+      }
+    }
+  }
+
+  return filteredLines.join('\n');
+}
+
 // Generate Terraform code with variables
 function generateTerraformCode(templateCode: string, variables: any): string {
-  let code = templateCode;
+  // First, deduplicate the template code
+  let code = deduplicateTerraformCode(templateCode);
 
   // Add Terraform and provider configuration
   const terraformConfig = `terraform {

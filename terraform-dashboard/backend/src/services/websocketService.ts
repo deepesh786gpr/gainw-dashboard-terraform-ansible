@@ -22,7 +22,7 @@ export interface ConnectedClient {
 export class WebSocketService {
   private wss: WebSocketServer;
   private clients: Map<string, ConnectedClient> = new Map();
-  private heartbeatInterval: NodeJS.Timeout;
+  private heartbeatInterval!: NodeJS.Timeout;
   private rooms: Map<string, Set<string>> = new Map(); // room -> client IDs
 
   constructor(server: HTTPServer) {

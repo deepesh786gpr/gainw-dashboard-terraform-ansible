@@ -30,6 +30,7 @@ import {
   Token as TokenIcon,
   Router as VpcIcon,
   Build as AnsibleIcon,
+  PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,6 +47,7 @@ const allMenuItems = [
   { text: 'Deployments', icon: <DeployIcon />, path: '/deployments', permissions: ['deployments:read'] },
   { text: 'Templates', icon: <TemplateIcon />, path: '/templates', permissions: ['templates:read'] },
   { text: 'Ansible Scripts', icon: <AnsibleIcon />, path: '/ansible-scripts', permissions: ['templates:read'] },
+  { text: 'Ansible Execution', icon: <PlayArrowIcon />, path: '/ansible-execution', permissions: ['templates:read'] },
   { text: 'GitHub Import', icon: <GitHubIcon />, path: '/github-import', permissions: ['github:read', 'templates:write'] },
   { text: 'GitHub Tokens', icon: <TokenIcon />, path: '/github-tokens', permissions: ['github:read'] },
   { text: 'Instances', icon: <InstanceIcon />, path: '/instances', permissions: ['instances:read'] },

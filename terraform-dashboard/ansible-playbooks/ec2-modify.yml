@@ -1,0 +1,175 @@
+---
+# Ansible Playbook: Modify EC2 Instance
+# Description: Modifies an existing EC2 instance (instance type, tags, security groups)
+# Usage: ansible-playbook ec2-modify.yml -e "instance_id=i-1234567890abcdef0 new_instance_type=t3.small"
+
+- name: Modify EC2 Instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Required variables
+    instance_id: "{{ instance_id | default('') }}"
+    region: "{{ aws_region | default('us-east-1') }}"
+    
+    # Optional modification parameters
+    new_instance_type: "{{ new_instance_type | default('') }}"
+    new_security_groups: "{{ new_security_groups | default([]) }}"
+    add_tags: "{{ add_tags | default({}) }}"
+    remove_tags: "{{ remove_tags | default([]) }}"
+    
+  tasks:
+    - name: Validate required parameters
+      fail:
+        msg: "instance_id is required. Use -e 'instance_id=i-1234567890abcdef0'"
+      when: instance_id == ""
+
+    - name: Get current instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: instance_info
+
+    - name: Validate instance exists
+      fail:
+        msg: "Instance {{ instance_id }} not found in region {{ region }}"
+      when: instance_info.instances | length == 0
+
+    - name: Display current instance information
+      debug:
+        msg:
+          - "Current Instance Information:"
+          - "Instance ID: {{ instance_info.instances[0].instance_id }}"
+          - "Instance Type: {{ instance_info.instances[0].instance_type }}"
+          - "State: {{ instance_info.instances[0].state.name }}"
+          - "Security Groups: {{ instance_info.instances[0].security_groups | map(attribute='group_name') | list }}"
+
+    - name: Stop instance if changing instance type
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ instance_id }}"
+        region: "{{ region }}"
+        state: stopped
+        wait: true
+        wait_timeout: 300
+      when: 
+        - new_instance_type != ""
+        - new_instance_type != instance_info.instances[0].instance_type
+        - instance_info.instances[0].state.name == "running"
+      register: stop_result
+
+    - name: Wait for instance to be stopped
+      pause:
+        seconds: 10
+      when: stop_result is defined and stop_result.changed
+
+    - name: Modify instance type
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ instance_id }}"
+        region: "{{ region }}"
+        instance_type: "{{ new_instance_type }}"
+        state: stopped
+      when: 
+        - new_instance_type != ""
+        - new_instance_type != instance_info.instances[0].instance_type
+      register: modify_type_result
+
+    - name: Start instance after type change
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ instance_id }}"
+        region: "{{ region }}"
+        state: running
+        wait: true
+        wait_timeout: 300
+      when: modify_type_result is defined and modify_type_result.changed
+      register: start_result
+
+    - name: Modify security groups
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ instance_id }}"
+        region: "{{ region }}"
+        security_groups: "{{ new_security_groups }}"
+        state: present
+      when: new_security_groups | length > 0
+      register: modify_sg_result
+
+    - name: Add new tags
+      amazon.aws.ec2_tag:
+        region: "{{ region }}"
+        resource: "{{ instance_id }}"
+        tags: "{{ add_tags | combine({'LastModified': ansible_date_time.iso8601, 'ModifiedBy': 'terraform-dashboard-ansible'}) }}"
+        state: present
+      when: add_tags | length > 0
+      register: add_tags_result
+
+    - name: Remove specified tags
+      amazon.aws.ec2_tag:
+        region: "{{ region }}"
+        resource: "{{ instance_id }}"
+        tags: "{{ dict(remove_tags | map('regex_replace', '^(.*)$', '\\1') | zip(remove_tags | map('regex_replace', '.*', ''))) }}"
+        state: absent
+      when: remove_tags | length > 0
+      register: remove_tags_result
+
+    - name: Get updated instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: updated_instance_info
+
+    - name: Display modification results
+      debug:
+        msg:
+          - "Instance modification completed!"
+          - "Instance ID: {{ updated_instance_info.instances[0].instance_id }}"
+          - "Instance Type: {{ updated_instance_info.instances[0].instance_type }}"
+          - "State: {{ updated_instance_info.instances[0].state.name }}"
+          - "Security Groups: {{ updated_instance_info.instances[0].security_groups | map(attribute='group_name') | list }}"
+          - "Private IP: {{ updated_instance_info.instances[0].private_ip_address }}"
+          - "Public IP: {{ updated_instance_info.instances[0].public_ip_address | default('N/A') }}"
+
+    - name: Save modification log
+      copy:
+        content: |
+          EC2 Instance Modification Log
+          ============================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Instance ID: {{ instance_id }}
+          Region: {{ region }}
+          
+          Changes Made:
+          {% if modify_type_result is defined and modify_type_result.changed %}
+          - Instance type changed to: {{ new_instance_type }}
+          {% endif %}
+          {% if modify_sg_result is defined and modify_sg_result.changed %}
+          - Security groups updated to: {{ new_security_groups | join(', ') }}
+          {% endif %}
+          {% if add_tags_result is defined and add_tags_result.changed %}
+          - Tags added: {{ add_tags | to_nice_json }}
+          {% endif %}
+          {% if remove_tags_result is defined and remove_tags_result.changed %}
+          - Tags removed: {{ remove_tags | join(', ') }}
+          {% endif %}
+          
+          Current Instance State:
+          - Instance Type: {{ updated_instance_info.instances[0].instance_type }}
+          - State: {{ updated_instance_info.instances[0].state.name }}
+          - Private IP: {{ updated_instance_info.instances[0].private_ip_address }}
+          - Public IP: {{ updated_instance_info.instances[0].public_ip_address | default('N/A') }}
+        dest: "./{{ instance_id }}-modification-{{ ansible_date_time.epoch }}.log"
+      delegate_to: localhost
+
+    - name: Return updated instance information
+      set_fact:
+        updated_instance:
+          instance_id: "{{ updated_instance_info.instances[0].instance_id }}"
+          instance_type: "{{ updated_instance_info.instances[0].instance_type }}"
+          state: "{{ updated_instance_info.instances[0].state.name }}"
+          private_ip: "{{ updated_instance_info.instances[0].private_ip_address }}"
+          public_ip: "{{ updated_instance_info.instances[0].public_ip_address | default('N/A') }}"
+          security_groups: "{{ updated_instance_info.instances[0].security_groups | map(attribute='group_name') | list }}"
+          modified_at: "{{ ansible_date_time.iso8601 }}"

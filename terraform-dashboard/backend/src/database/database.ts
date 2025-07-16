@@ -73,11 +73,19 @@ async function createTables(): Promise<void> {
     )
   `);
 
+  // Add template_type column if it doesn't exist
+  try {
+    await db.run(`ALTER TABLE templates ADD COLUMN template_type TEXT DEFAULT 'terraform'`);
+  } catch (error) {
+    // Column already exists, ignore error
+  }
+
   // Add indexes for templates table
   await db.run(`CREATE INDEX IF NOT EXISTS idx_templates_category ON templates(category)`);
   await db.run(`CREATE INDEX IF NOT EXISTS idx_templates_name ON templates(name)`);
   await db.run(`CREATE INDEX IF NOT EXISTS idx_templates_usage_count ON templates(usage_count)`);
   await db.run(`CREATE INDEX IF NOT EXISTS idx_templates_created_at ON templates(created_at)`);
+  await db.run(`CREATE INDEX IF NOT EXISTS idx_templates_type ON templates(template_type)`);
 
   // Deployments table (enhanced with user tracking)
   await db.run(`

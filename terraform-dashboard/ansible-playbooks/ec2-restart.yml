@@ -1,0 +1,194 @@
+---
+# Ansible Playbook: Restart EC2 Instance
+# Description: Safely restarts an EC2 instance with optional health checks
+# Usage: ansible-playbook ec2-restart.yml -e "instance_id=i-1234567890abcdef0"
+
+- name: Restart EC2 Instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Required variables
+    instance_id: "{{ instance_id | default('') }}"
+    region: "{{ aws_region | default('us-east-1') }}"
+    
+    # Optional parameters
+    wait_for_restart: "{{ wait_for_restart | default(true) }}"
+    restart_timeout: "{{ restart_timeout | default(600) }}"
+    health_check_url: "{{ health_check_url | default('') }}"
+    health_check_timeout: "{{ health_check_timeout | default(300) }}"
+    force_restart: "{{ force_restart | default(false) }}"
+    
+  tasks:
+    - name: Validate required parameters
+      fail:
+        msg: "instance_id is required. Use -e 'instance_id=i-1234567890abcdef0'"
+      when: instance_id == ""
+
+    - name: Get current instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: instance_info
+
+    - name: Validate instance exists
+      fail:
+        msg: "Instance {{ instance_id }} not found in region {{ region }}"
+      when: instance_info.instances | length == 0
+
+    - name: Check if instance is running
+      fail:
+        msg: "Instance {{ instance_id }} is not in running state. Current state: {{ instance_info.instances[0].state.name }}"
+      when: 
+        - instance_info.instances[0].state.name != "running"
+        - not force_restart
+
+    - name: Display pre-restart instance information
+      debug:
+        msg:
+          - "Instance Information Before Restart:"
+          - "Instance ID: {{ instance_info.instances[0].instance_id }}"
+          - "Instance Type: {{ instance_info.instances[0].instance_type }}"
+          - "State: {{ instance_info.instances[0].state.name }}"
+          - "Private IP: {{ instance_info.instances[0].private_ip_address }}"
+          - "Public IP: {{ instance_info.instances[0].public_ip_address | default('N/A') }}"
+          - "Launch Time: {{ instance_info.instances[0].launch_time }}"
+
+    - name: Record restart timestamp
+      set_fact:
+        restart_started_at: "{{ ansible_date_time.iso8601 }}"
+
+    - name: Perform health check before restart (if URL provided)
+      uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        timeout: 10
+        status_code: [200, 301, 302]
+      register: pre_restart_health
+      ignore_errors: true
+      when: health_check_url != ""
+
+    - name: Display pre-restart health status
+      debug:
+        msg: "Pre-restart health check: {{ 'PASSED' if pre_restart_health.status == 200 else 'FAILED' }}"
+      when: health_check_url != ""
+
+    - name: Restart EC2 instance
+      amazon.aws.ec2_instance:
+        instance_ids:
+          - "{{ instance_id }}"
+        region: "{{ region }}"
+        state: restarted
+        wait: "{{ wait_for_restart }}"
+        wait_timeout: "{{ restart_timeout }}"
+      register: restart_result
+
+    - name: Wait for instance to be running
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: post_restart_info
+      until: post_restart_info.instances[0].state.name == "running"
+      retries: 30
+      delay: 10
+      when: wait_for_restart
+
+    - name: Wait additional time for services to start
+      pause:
+        seconds: 30
+      when: wait_for_restart
+
+    - name: Perform health check after restart (if URL provided)
+      uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        timeout: 10
+        status_code: [200, 301, 302]
+      register: post_restart_health
+      retries: "{{ (health_check_timeout | int / 10) | int }}"
+      delay: 10
+      until: post_restart_health.status == 200
+      ignore_errors: true
+      when: health_check_url != ""
+
+    - name: Display post-restart health status
+      debug:
+        msg: "Post-restart health check: {{ 'PASSED' if post_restart_health.status == 200 else 'FAILED' }}"
+      when: health_check_url != ""
+
+    - name: Get final instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: final_instance_info
+
+    - name: Calculate restart duration
+      set_fact:
+        restart_completed_at: "{{ ansible_date_time.iso8601 }}"
+        restart_duration: "{{ (ansible_date_time.epoch | int) - (restart_started_at | to_datetime('%Y-%m-%dT%H:%M:%SZ') | int) }}"
+
+    - name: Display restart results
+      debug:
+        msg:
+          - "Instance restart completed!"
+          - "Instance ID: {{ final_instance_info.instances[0].instance_id }}"
+          - "Current State: {{ final_instance_info.instances[0].state.name }}"
+          - "Private IP: {{ final_instance_info.instances[0].private_ip_address }}"
+          - "Public IP: {{ final_instance_info.instances[0].public_ip_address | default('N/A') }}"
+          - "Restart Started: {{ restart_started_at }}"
+          - "Restart Completed: {{ restart_completed_at }}"
+          - "Duration: {{ restart_duration }} seconds"
+          - "Health Check: {{ 'PASSED' if (health_check_url != '' and post_restart_health.status == 200) else 'N/A' if health_check_url == '' else 'FAILED' }}"
+
+    - name: Save restart log
+      copy:
+        content: |
+          EC2 Instance Restart Log
+          =======================
+          Instance ID: {{ instance_id }}
+          Region: {{ region }}
+          
+          Restart Timeline:
+          - Started: {{ restart_started_at }}
+          - Completed: {{ restart_completed_at }}
+          - Duration: {{ restart_duration }} seconds
+          
+          Pre-Restart Status:
+          - State: {{ instance_info.instances[0].state.name }}
+          - Launch Time: {{ instance_info.instances[0].launch_time }}
+          {% if health_check_url != "" %}
+          - Health Check: {{ 'PASSED' if pre_restart_health.status == 200 else 'FAILED' }}
+          {% endif %}
+          
+          Post-Restart Status:
+          - State: {{ final_instance_info.instances[0].state.name }}
+          - Private IP: {{ final_instance_info.instances[0].private_ip_address }}
+          - Public IP: {{ final_instance_info.instances[0].public_ip_address | default('N/A') }}
+          {% if health_check_url != "" %}
+          - Health Check: {{ 'PASSED' if post_restart_health.status == 200 else 'FAILED' }}
+          {% endif %}
+          
+          Configuration:
+          - Wait for restart: {{ wait_for_restart }}
+          - Restart timeout: {{ restart_timeout }}s
+          {% if health_check_url != "" %}
+          - Health check URL: {{ health_check_url }}
+          - Health check timeout: {{ health_check_timeout }}s
+          {% endif %}
+        dest: "./{{ instance_id }}-restart-{{ ansible_date_time.epoch }}.log"
+      delegate_to: localhost
+
+    - name: Return restart information
+      set_fact:
+        restart_info:
+          instance_id: "{{ instance_id }}"
+          restart_started_at: "{{ restart_started_at }}"
+          restart_completed_at: "{{ restart_completed_at }}"
+          restart_duration_seconds: "{{ restart_duration }}"
+          final_state: "{{ final_instance_info.instances[0].state.name }}"
+          private_ip: "{{ final_instance_info.instances[0].private_ip_address }}"
+          public_ip: "{{ final_instance_info.instances[0].public_ip_address | default('N/A') }}"
+          health_check_passed: "{{ post_restart_health.status == 200 if health_check_url != '' else null }}"
+          success: "{{ final_instance_info.instances[0].state.name == 'running' }}"

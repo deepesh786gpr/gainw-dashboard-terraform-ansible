@@ -43,6 +43,7 @@ import {
   Person as PersonIcon,
   Business as BusinessIcon,
 } from '@mui/icons-material';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface GitHubRepo {
   id: number;
@@ -77,6 +78,7 @@ interface RepoAnalysis {
 }
 
 const GitHubImport: React.FC = () => {
+  const { tokens } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [githubToken, setGithubToken] = useState('');
   const [tokenValid, setTokenValid] = useState(false);
@@ -103,6 +105,19 @@ const GitHubImport: React.FC = () => {
     'Create Template'
   ];
 
+  // Helper function to get auth headers
+  const getAuthHeaders = () => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (tokens?.accessToken) {
+      headers['Authorization'] = `Bearer ${tokens.accessToken}`;
+    }
+
+    return headers;
+  };
+
   // Validate GitHub token
   const validateToken = async () => {
     if (!githubToken.trim()) {
@@ -116,9 +131,7 @@ const GitHubImport: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/github/validate-token`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ token: githubToken }),
       });
 
@@ -145,7 +158,10 @@ const GitHubImport: React.FC = () => {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/github/search?q=${encodeURIComponent(searchQuery)}&limit=20&token=${githubToken}`
+        `${API_BASE_URL}/api/github/search?q=${encodeURIComponent(searchQuery)}&limit=20&token=${githubToken}`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (!response.ok) {
@@ -180,7 +196,10 @@ const GitHubImport: React.FC = () => {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/github/user/repos?token=${githubToken}&type=all&sort=updated&per_page=50`
+        `${API_BASE_URL}/api/github/user/repos?token=${githubToken}&type=all&sort=updated&per_page=50`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (!response.ok) {
@@ -221,7 +240,10 @@ const GitHubImport: React.FC = () => {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/github/orgs/${encodeURIComponent(orgName)}/repos?token=${githubToken}&type=all&sort=updated&per_page=50`
+        `${API_BASE_URL}/api/github/orgs/${encodeURIComponent(orgName)}/repos?token=${githubToken}&type=all&sort=updated&per_page=50`,
+        {
+          headers: getAuthHeaders(),
+        }
       );
 
       if (!response.ok) {
@@ -277,9 +299,7 @@ const GitHubImport: React.FC = () => {
         `${API_BASE_URL}/api/github/repos/${owner}/${repoName}/analyze`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ token: githubToken }),
         }
       );
@@ -332,17 +352,14 @@ const GitHubImport: React.FC = () => {
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           templateName,
           description: templateDescription,
           mainFile,
           token: githubToken,
         }),
-      }
-      );
+      });
 
       if (!response.ok) {
         throw new Error('Failed to create template');
@@ -353,12 +370,12 @@ const GitHubImport: React.FC = () => {
 
       // Show success message with navigation options
       setTimeout(() => {
-        const templateType = template.template?.type || templateType;
+        const createdTemplateType = template.template?.type || templateType;
         const message = `Template "${templateName}" created successfully!\n\nWould you like to view it now?`;
 
         if (window.confirm(message)) {
           // Navigate to the appropriate page
-          if (templateType === 'ansible') {
+          if (createdTemplateType === 'ansible') {
             window.location.href = '/ansible-scripts';
           } else {
             window.location.href = '/templates';

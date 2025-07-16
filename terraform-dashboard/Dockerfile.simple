@@ -1,0 +1,60 @@
+# Simple Dockerfile for Terraform Dashboard
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    bash \
+    curl \
+    git \
+    openssh-client \
+    && rm -rf /var/cache/apk/*
+
+# Install Terraform (optional - can be mounted as volume)
+RUN wget https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip \
+    && unzip terraform_1.6.0_linux_amd64.zip \
+    && mv terraform /usr/local/bin/ \
+    && rm terraform_1.6.0_linux_amd64.zip
+
+# Install Terragrunt (optional - can be mounted as volume)
+RUN wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.53.0/terragrunt_linux_amd64 \
+    && mv terragrunt_linux_amd64 /usr/local/bin/terragrunt \
+    && chmod +x /usr/local/bin/terragrunt
+
+# Copy package files
+COPY package*.json ./
+COPY backend/package*.json ./backend/
+COPY frontend/package*.json ./frontend/
+
+# Install dependencies
+RUN npm install
+RUN cd backend && npm install
+RUN cd frontend && npm install
+
+# Copy source code
+COPY . .
+
+# Build applications
+RUN cd backend && npm run build
+RUN cd frontend && npm run build
+
+# Install serve for frontend
+RUN npm install -g serve pm2
+
+# Create necessary directories
+RUN mkdir -p backend/data backend/logs backend/terraform-workspace
+
+# Copy PM2 ecosystem file
+COPY ecosystem.config.js ./
+
+# Expose ports
+EXPOSE 3000 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5000/api/health || exit 1
+
+# Start command
+CMD ["pm2-runtime", "start", "ecosystem.config.js"]
